@@ -15,6 +15,14 @@ class ZoomPanLabel(QLabel):
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+    def update_cursor(self):
+        if self.is_panning:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        elif self.space_pressed:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
     def set_pixmap(self, pixmap):
         self.original_pixmap = pixmap
         self.zoom_level = 1.0
@@ -106,17 +114,28 @@ class ZoomPanLabel(QLabel):
 
     def mouseMoveEvent(self, event):
         if self.is_panning:
+            self.setCursor(Qt.CursorShape.DragMoveCursor) # Set grabbing cursor when dragging
             delta = event.pos() - self.last_pan_pos
             self.pan_offset += delta
             self.last_pan_pos = event.pos()
             self.update_display()
+        elif self.space_pressed: # If space is pressed but not panning, show OpenHandCursor
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        else: # If not panning and space is not pressed, show default cursor
+            self.setCursor(Qt.CursorShape.ArrowCursor)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.is_panning = False # Stop panning on left button release
+            if self.is_panning:
+                self.is_panning = False # Stop panning on left button release
+                if self.space_pressed:
+                    self.setCursor(Qt.CursorShape.OpenHandCursor) # Revert to OpenHand if space is still held
+                else:
+                    self.setCursor(Qt.CursorShape.ArrowCursor) # Reset to Arrow if space is released
         elif event.button() == Qt.MouseButton.MiddleButton:
             self.is_panning = False
+            self.setCursor(Qt.CursorShape.ArrowCursor) # Reset cursor to default
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):
@@ -124,11 +143,13 @@ class ZoomPanLabel(QLabel):
             self.space_pressed = True # Set flag when space is pressed
             # Capture the current mouse position relative to the widget
             self.last_pan_pos = self.mapFromGlobal(self.cursor().pos())
+        self.update_cursor() # Update cursor based on new state
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key.Key_Space:
             self.space_pressed = False # Clear flag when space is released
+        self.update_cursor() # Update cursor based on new state
         super().keyReleaseEvent(event)
 
     def sizeHint(self):
