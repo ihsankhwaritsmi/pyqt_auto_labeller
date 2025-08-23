@@ -17,9 +17,9 @@ class MainWindow(QMainWindow):
         self.ui_manager = UIManager(self)
         self.dataset_manager = DatasetManager(self)
         self.ui_manager.setup_ui()
+        self.apply_theme() # Call apply_theme here
         self.rng = random.Random() # Initialize a random number generator for consistent colors
         self.connect_signals()
-
     def connect_signals(self):
         # Connect UI signals to DatasetManager methods
         self.ui_manager.main_window.load_dataset_action.triggered.connect(self.dataset_manager.load_dataset)

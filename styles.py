@@ -33,15 +33,15 @@ QPushButton:pressed { /* Visual feedback for pressed state */
     background-color: #3A3A3A; /* Darker background when pressed */
     border: 1px solid #6A6A6A; /* More prominent border when pressed */
 }
-QPushButton:checked { /* Style for checked state (e.g., Annotate/Select mode) */
+QMainWindow QPushButton:checked { /* Style for checked state (e.g., Annotate/Select mode) */
     background-color: #4A90E2; /* Blue selection color, similar to list item */
     border: 1px solid #4A90E2; /* Match border color */
     color: white;
     font-weight: bold; /* Make text bold */
 }
 QPushButton:disabled {
-    background-color: transparent; /* Transparent background when disabled */
-    border: 1px solid transparent; /* Transparent border when disabled */
+    background-color: #3A3A3A; /* Slightly darker background to keep it visible */
+    border: 1px solid #5A5A5A; /* Keep a visible border, similar to default */
     color: #888888; /* Greyed out text color */
 }
 QPushButton:enabled {

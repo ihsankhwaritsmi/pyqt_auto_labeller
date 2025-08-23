@@ -121,13 +121,18 @@ class UIManager:
         self.main_window.select_button.setCheckable(True)
         self.main_window.select_button.setChecked(True)
 
+        # Explicitly set style for annotate and select buttons for testing
+        self.main_window.annotate_button.setStyleSheet("QPushButton:checked { background-color: #4A90E2; color: white; border: 1px solid #4A90E2; font-weight: bold; }")
+        self.main_window.select_button.setStyleSheet("QPushButton:checked { background-color: #4A90E2; color: white; border: 1px solid #4A90E2; font-weight: bold; }")
         right_layout.addWidget(self.main_window.annotate_button)
         right_layout.addWidget(self.main_window.select_button)
 
-        self.main_window.toggle_visibility_button = QPushButton("Toggle Bounding Box Visibility")
+        self.main_window.toggle_visibility_button = QPushButton("Hide Annotations")
         self.main_window.toggle_visibility_button.setEnabled(False) # Initially disabled
+        # Make the toggle button checkable and apply the same style as other toggle buttons
+        self.main_window.toggle_visibility_button.setCheckable(True)
+        self.main_window.toggle_visibility_button.setStyleSheet("QPushButton:checked { background-color: #4A90E2; color: white; border: 1px solid #4A90E2; font-weight: bold; }")
         right_layout.addWidget(self.main_window.toggle_visibility_button)
-
         right_layout.addStretch(1) # This pushes the following widgets to the bottom
 
         right_layout.addWidget(self.main_window.save_labels_button)
