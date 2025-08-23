@@ -156,7 +156,7 @@ class ZoomPanLabel(QLabel):
                 else:
                     pen = painter.pen()
                     pen.setColor(box_color)
-                    pen.setWidth(1)
+                    pen.setWidth(2) # Increased pen width for all boxes
                     painter.setPen(pen)
                 
                 painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -412,7 +412,19 @@ class ZoomPanLabel(QLabel):
 
     def set_labels_map(self, labels: list):
         self.labels_map = {label['id']: {'name': label['name'], 'color': label['color']} for label in labels}
-        self.label_colors_map = {label['id']: QColor(label['color']) for label in labels}
+        
+        self.label_colors_map = {}
+        for label in labels:
+            color = QColor(label['color'])
+            # Ensure a minimum saturation level for visibility
+            saturation = max(color.saturation(), 200) # Set minimum saturation to 200
+            value = color.value()
+            hue = color.hue()
+            
+            new_color = QColor.fromHsv(hue, saturation, value)
+            new_color.setAlpha(255) # Ensure full opacity
+            self.label_colors_map[label['id']] = new_color
+            
         self.update_display() # Redraw to show updated labels
 
     def clear_bounding_boxes(self):
