@@ -273,12 +273,34 @@ class ZoomPanLabel(QLabel):
     def _edit_selected_bounding_box(self):
         if self.selected_box_index != -1:
             current_class_id, rect = self.bounding_boxes[self.selected_box_index]
-            text, ok = QInputDialog.getInt(self, "Edit Class ID", "New Class ID:", current_class_id, 0, 9999)
-            if ok:
-                self.bounding_boxes[self.selected_box_index] = (text, rect)
-                self._save_history_state()
-                self.update_display()
-                self.label_needed_signal.emit(f"Bounding box class ID updated to {text}.")
+            
+            # Prepare a list of existing label names for the QInputDialog
+            label_names = [self.labels_map[label_id] for label_id in sorted(self.labels_map.keys())]
+            
+            # Find the current label name
+            current_label_name = self.labels_map.get(current_class_id, f"ID {current_class_id} (Unknown)")
+            
+            # Get the new label name from the user
+            new_label_name, ok = QInputDialog.getItem(self, "Edit Class ID", "Select New Class:", label_names, 
+                                                      label_names.index(current_label_name) if current_label_name in label_names else 0, 
+                                                      False)
+            
+            if ok and new_label_name:
+                # Find the class ID corresponding to the selected label name
+                new_class_id = -1
+                for label_id, name in self.labels_map.items():
+                    if name == new_label_name:
+                        new_class_id = label_id
+                        break
+                
+                if new_class_id != -1:
+                    self.bounding_boxes[self.selected_box_index] = (new_class_id, rect)
+                    self._save_history_state()
+                    self.update_display()
+                    self.label_needed_signal.emit(f"Bounding box class ID updated to {new_label_name} (ID: {new_class_id}).")
+                else:
+                    self.label_needed_signal.emit(f"Error: Could not find ID for label '{new_label_name}'.")
+            
             self.selected_box_index = -1 # Deselect after editing
             self.update_display()
 

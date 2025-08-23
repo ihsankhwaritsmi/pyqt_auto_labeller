@@ -219,6 +219,7 @@ class DatasetManager(QObject):
                         if self.labels:
                             self.main_window.label_list_widget.setCurrentRow(0)
                             self.current_label_id = self.labels[0]['id']
+                        self.labels_updated.emit(self.labels) # Emit signal after loading labels
                     else:
                         self.main_window.statusBar.showMessage("Error: labels.json content is not a list.")
             except json.JSONDecodeError as e:
@@ -248,6 +249,7 @@ class DatasetManager(QObject):
         self.main_window.label_list_widget.addItem(item)
         self.main_window.label_list_widget.setCurrentItem(item)
         self.save_labels_to_json()
+        self.labels_updated.emit(self.labels) # Emit signal after adding a label
         self.main_window.statusBar.showMessage(f"Label '{label_name}' added.")
 
     def edit_label(self, label_id, new_label_name, current_item):
@@ -257,6 +259,7 @@ class DatasetManager(QObject):
                 break
         current_item.setText(new_label_name)
         self.save_labels_to_json()
+        self.labels_updated.emit(self.labels) # Emit signal after editing a label
         self.main_window.statusBar.showMessage(f"Label updated to '{new_label_name}'.")
 
     def delete_label(self, label_id_to_delete, label_name_to_delete, current_item):
@@ -271,6 +274,7 @@ class DatasetManager(QObject):
                 self.current_label_id = self.labels[0]['id']
 
         self.save_labels_to_json()
+        self.labels_updated.emit(self.labels) # Emit signal after deleting a label
         self.main_window.statusBar.showMessage(f"Label '{label_name_to_delete}' deleted.")
 
     def save_labels(self):
