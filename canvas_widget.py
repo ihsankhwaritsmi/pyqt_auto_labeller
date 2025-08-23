@@ -162,13 +162,6 @@ class ZoomPanLabel(QLabel):
                 rect_widget_coords = self.rect_to_widget_coords(rect_image_coords)
                 painter.drawRect(rect_widget_coords)
 
-                # Draw class name if available
-                if class_id in self.labels_map:
-                    label_info = self.labels_map[class_id]
-                    class_name = label_info['name']
-                    # Use a contrasting color for text, or white/black depending on background
-                    painter.setPen(Qt.GlobalColor.white) # White color for text
-                    painter.drawText(rect_widget_coords.topLeft() + QPoint(5, 15), class_name)
 
         # Draw current rectangle being drawn only in annotate mode
         if self.current_mode == "annotate" and self.drawing_box:
