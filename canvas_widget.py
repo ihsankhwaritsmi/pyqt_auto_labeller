@@ -101,19 +101,18 @@ class ZoomPanLabel(QLabel):
         painter.drawPixmap(draw_rect, self.current_pixmap_scaled)
 
         # Draw bounding boxes
-        if self.current_mode == "annotate":
-            # Draw current rectangle being drawn
-            # Draw current rectangle being drawn (convert from image to widget coords)
-            if self.drawing_box:
-                painter.setPen(Qt.GlobalColor.red) # Red color for bounding box
-                painter.setBrush(Qt.BrushStyle.NoBrush) # No fill
-                painter.drawRect(self.rect_to_widget_coords(self.current_rect))
-
-            # Draw all saved bounding boxes (convert from image to widget coords)
+        # Always draw saved bounding boxes
+        if self.bounding_boxes:
             painter.setPen(Qt.GlobalColor.green) # Green color for saved boxes
             painter.setBrush(Qt.BrushStyle.NoBrush)
             for class_id, rect_image_coords in self.bounding_boxes:
                 painter.drawRect(self.rect_to_widget_coords(rect_image_coords))
+
+        # Draw current rectangle being drawn only in annotate mode
+        if self.current_mode == "annotate" and self.drawing_box:
+            painter.setPen(Qt.GlobalColor.red) # Red color for bounding box
+            painter.setBrush(Qt.BrushStyle.NoBrush) # No fill
+            painter.drawRect(self.rect_to_widget_coords(self.current_rect))
         
         painter.end()
 

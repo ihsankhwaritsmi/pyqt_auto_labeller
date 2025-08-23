@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QInputDialog, # Import QInputDialog for label input
     QLineEdit # Import QLineEdit for EchoMode
 )
-from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF
 from PyQt6.QtGui import QPixmap, QImageReader, QIcon
 from PyQt6.QtWidgets import QApplication # Import QApplication
 
@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         # Set the new pixmap
         self.canvas_label.set_pixmap(pixmap)
         self.current_image_path = image_path # Update current image path
+        self.statusBar.showMessage(f"Image dimensions: {self.canvas_label.original_width}x{self.canvas_label.original_height}")
 
         # Load bounding boxes for the new image
         loaded_boxes = []
@@ -207,7 +208,10 @@ class MainWindow(QMainWindow):
                             h = height * original_height
                             
                             loaded_boxes.append((class_id, QRectF(x, y, w, h)))
-                self.statusBar.showMessage(f"Labels loaded from {label_filename}")
+                self.statusBar.showMessage(f"Labels loaded from {label_filename}. Found {len(loaded_boxes)} boxes.")
+                if loaded_boxes:
+                    first_box = loaded_boxes[0][1]
+                    self.statusBar.showMessage(f"First box: x={first_box.x():.2f}, y={first_box.y():.2f}, w={first_box.width():.2f}, h={first_box.height():.2f}")
             except Exception as e:
                 self.statusBar.showMessage(f"Error loading labels from {label_filename}: {e}")
         
@@ -577,7 +581,7 @@ class MainWindow(QMainWindow):
                     height = rect.height() / original_height
 
                     # Ensure values are within [0, 1] range and formatted correctly
-                    f.write(f"{class_id} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f} #{label_name}\n") # Include label name as comment
+                    f.write(f"{class_id} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f}\n") # Removed label name as comment
             
             self.statusBar.showMessage(f"Labels saved to {label_filename}")
             self._update_image_list_item_labelled_status(image_path, True) # Update status
