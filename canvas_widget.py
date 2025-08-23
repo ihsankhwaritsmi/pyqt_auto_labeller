@@ -22,6 +22,7 @@ class ZoomPanLabel(QLabel):
         self.current_class_id = -1 # New: Store the currently selected class ID for new boxes
         self.original_width = None
         self.original_height = None
+        self.mouse_pos = QPoint(0, 0) # To store current mouse position for ruler lines
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
@@ -113,6 +114,15 @@ class ZoomPanLabel(QLabel):
             painter.setPen(Qt.GlobalColor.red) # Red color for bounding box
             painter.setBrush(Qt.BrushStyle.NoBrush) # No fill
             painter.drawRect(self.rect_to_widget_coords(self.current_rect))
+
+        # Draw ruler lines if in annotate mode and mouse is over the canvas
+        if self.current_mode == "annotate" and self.original_pixmap is not None:
+            painter.setPen(Qt.PenStyle.DashLine)
+            painter.setPen(Qt.GlobalColor.white)
+            # Horizontal line
+            painter.drawLine(0, self.mouse_pos.y(), self.width(), self.mouse_pos.y())
+            # Vertical line
+            painter.drawLine(self.mouse_pos.x(), 0, self.mouse_pos.x(), self.height())
         
         painter.end()
 
@@ -190,9 +200,19 @@ class ZoomPanLabel(QLabel):
             self.current_rect.setBottomRight(self.widget_to_image_coords(event.position()))
             self.update_display()
             self.update_cursor() # Ensure cursor stays as crosshair
+        elif self.current_mode == "annotate": # If in annotate mode and not panning/drawing, show CrossCursor
+            self.setCursor(Qt.CursorShape.CrossCursor)
         else: # If not panning and space is not pressed, show default cursor
             self.setCursor(Qt.CursorShape.ArrowCursor)
+        
+        self.mouse_pos = event.pos() # Update mouse position for ruler lines
+        self.update() # Trigger repaint to draw ruler lines
         super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        # Reset cursor when mouse leaves the widget
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
