@@ -4,6 +4,7 @@ from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform
 
 class ZoomPanLabel(QLabel):
     label_needed_signal = pyqtSignal(str) # New signal to request status bar message, defined as class attribute
+    bounding_box_added = pyqtSignal() # New signal to indicate a bounding box has been added
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,8 +24,44 @@ class ZoomPanLabel(QLabel):
         self.original_width = None
         self.original_height = None
         self.mouse_pos = QPoint(0, 0) # To store current mouse position for ruler lines
+        
+        self.history = [] # Stores states of bounding_boxes for undo/redo
+        self.history_index = -1 # Current position in history
+        self._save_history_state() # Save initial empty state
+
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def _save_history_state(self):
+        # Clear any redo history if a new action is performed
+        if self.history_index < len(self.history) - 1:
+            self.history = self.history[:self.history_index + 1]
+        
+        # Save a deep copy of the current bounding boxes
+        self.history.append([box for box in self.bounding_boxes])
+        self.history_index = len(self.history) - 1
+        # Limit history size to prevent excessive memory usage
+        if len(self.history) > 100: # Keep last 100 states
+            self.history.pop(0)
+            self.history_index -= 1
+
+    def undo(self):
+        if self.history_index > 0:
+            self.history_index -= 1
+            self.bounding_boxes = [box for box in self.history[self.history_index]]
+            self.update_display()
+            self.label_needed_signal.emit("Undo last annotation.")
+        else:
+            self.label_needed_signal.emit("Nothing to undo.")
+
+    def redo(self):
+        if self.history_index < len(self.history) - 1:
+            self.history_index += 1
+            self.bounding_boxes = [box for box in self.history[self.history_index]]
+            self.update_display()
+            self.label_needed_signal.emit("Redo last annotation.")
+        else:
+            self.label_needed_signal.emit("Nothing to redo.")
 
     def widget_to_image_coords(self, point: QPointF) -> QPointF:
         if self.zoom_level == 0:
@@ -223,6 +260,8 @@ class ZoomPanLabel(QLabel):
                 # Add the completed bounding box to the list (already in image coordinates)
                 if self.current_class_id != -1: # Only add if a label is selected
                     self.bounding_boxes.append((self.current_class_id, self.current_rect.normalized())) # Use current_class_id
+                    self._save_history_state() # Save state after adding a box
+                    self.bounding_box_added.emit() # Emit signal that a bounding box was added
                 else:
                     self.label_needed_signal.emit("Please select a label before annotating.") # Emit signal
                 self.current_rect = QRectF() # Clear the current rectangle
@@ -244,6 +283,10 @@ class ZoomPanLabel(QLabel):
             self.space_pressed = True # Set flag when space is pressed
             # Capture the current mouse position relative to the widget
             self.last_pan_pos = self.mapFromGlobal(self.cursor().pos())
+        elif event.key() == Qt.Key.Key_Z and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            self.undo()
+        elif event.key() == Qt.Key.Key_Z and event.modifiers() == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
+            self.redo()
         self.update_cursor() # Update cursor based on new state
         super().keyPressEvent(event)
 

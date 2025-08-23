@@ -33,6 +33,7 @@ class MainWindow(QMainWindow):
         self.ui_manager.main_window.previous_image_button.clicked.connect(self._previous_image)
         self.ui_manager.main_window.next_image_button.clicked.connect(self._next_image)
         self.ui_manager.main_window.canvas_label.label_needed_signal.connect(self.ui_manager.main_window.statusBar.showMessage)
+        self.ui_manager.main_window.canvas_label.bounding_box_added.connect(self.dataset_manager.set_unsaved_changes)
 
     def apply_theme(self):
         self.ui_manager.apply_theme()
@@ -83,6 +84,12 @@ class MainWindow(QMainWindow):
         label_id_to_delete = current_item.data(Qt.ItemDataRole.UserRole)
         label_name_to_delete = current_item.text()
         self.dataset_manager.delete_label(label_id_to_delete, label_name_to_delete, current_item)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_S and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            self.dataset_manager.save_labels()
+            self.ui_manager.main_window.statusBar.showMessage("Labels saved via Ctrl+S.")
+        super().keyPressEvent(event)
 
     def _previous_image(self):
         current_row = self.ui_manager.main_window.left_panel_list.currentRow()

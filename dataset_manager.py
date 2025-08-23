@@ -2,7 +2,7 @@ import os
 import json
 from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF
 from PyQt6.QtGui import QPixmap, QImageReader
-from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdit, QApplication
+from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdit, QApplication, QMessageBox # Import QMessageBox
 
 from widgets import ImageListItemWidget
 from canvas_widget import ZoomPanLabel
@@ -17,6 +17,11 @@ class DatasetManager:
         self.current_image_path = None
         self.labels = [] # [{'id': 0, 'name': 'label1'}, ...]
         self.current_label_id = -1
+        self.has_unsaved_changes = False # New flag to track unsaved changes
+
+    def set_unsaved_changes(self):
+        self.has_unsaved_changes = True
+        self.main_window.statusBar.showMessage("Unsaved changes detected.")
 
     def load_dataset(self):
         folder_path = QFileDialog.getExistingDirectory(self.main_window, "Select Dataset Folder")
@@ -44,6 +49,7 @@ class DatasetManager:
         self.current_label_id = -1
         self.main_window.left_panel_list.clear()
         self.main_window.label_list_widget.clear()
+        self.has_unsaved_changes = False # Reset on new dataset load
 
         supported_extensions = QImageReader.supportedImageFormats()
         supported_extensions = [ext.data().decode('ascii') for ext in supported_extensions]
@@ -94,6 +100,7 @@ class DatasetManager:
         self.main_window.canvas_label.set_pixmap(pixmap)
         self.current_image_path = image_path
         self.main_window.statusBar.showMessage(f"Image dimensions: {self.main_window.canvas_label.original_width}x{self.main_window.canvas_label.original_height}")
+        self.has_unsaved_changes = False # No unsaved changes after loading a new image
 
         loaded_boxes = []
         label_filename = os.path.splitext(os.path.basename(image_path))[0] + ".txt"
@@ -138,6 +145,22 @@ class DatasetManager:
         self.main_window.statusBar.showMessage(f"Displaying: {os.path.basename(image_path)}")
 
     def on_image_list_item_changed(self, current_item, previous_item):
+        if self.has_unsaved_changes and self.current_image_path:
+            reply = QMessageBox.warning(
+                self.main_window,
+                "Unsaved Changes",
+                f"Labels for '{os.path.basename(self.current_image_path)}' have not been saved. Do you want to save them?",
+                QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel
+            )
+
+            if reply == QMessageBox.StandardButton.Save:
+                self.save_labels()
+            elif reply == QMessageBox.StandardButton.Cancel:
+                # Revert to previous item if user cancels
+                self.main_window.left_panel_list.setCurrentItem(previous_item)
+                return
+            # If discard, just proceed without saving
+
         if previous_item and self.current_image_path:
             self.image_bounding_boxes[self.current_image_path] = self.main_window.canvas_label.get_bounding_boxes()
 
@@ -152,6 +175,8 @@ class DatasetManager:
             self.main_window.canvas_label.clear_bounding_boxes()
             self.current_image_path = None
             self.main_window.statusBar.showMessage("No image selected.")
+        
+        self.has_unsaved_changes = False # Reset after handling changes for the previous image
 
     def on_visibility_changed(self, image_path, is_visible):
         self.image_visibility[image_path] = is_visible
@@ -290,6 +315,7 @@ class DatasetManager:
             
             self.main_window.statusBar.showMessage(f"Labels saved to {label_filename}")
             self._update_image_list_item_labelled_status(image_path, True)
+            self.has_unsaved_changes = False # Labels are now saved
         except IOError as e:
             self.main_window.statusBar.showMessage(f"Error saving labels to {label_filename}: {e}")
         except Exception as e:
@@ -301,6 +327,7 @@ class DatasetManager:
             self.main_window.canvas_label.clear_bounding_boxes()
             self.main_window.statusBar.showMessage("Bounding boxes cleared for current image.")
             self._update_image_list_item_labelled_status(self.current_image_path, False)
+            self.has_unsaved_changes = True # Clearing labels is a change
         else:
             self.main_window.statusBar.showMessage("No image selected or no bounding boxes to clear.")
 
