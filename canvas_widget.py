@@ -117,8 +117,10 @@ class ZoomPanLabel(QLabel):
 
         # Draw ruler lines if in annotate mode and mouse is over the canvas
         if self.current_mode == "annotate" and self.original_pixmap is not None:
-            painter.setPen(Qt.PenStyle.DashLine)
-            painter.setPen(Qt.GlobalColor.white)
+            pen = painter.pen()
+            pen.setStyle(Qt.PenStyle.DashLine)
+            pen.setColor(Qt.GlobalColor.white)
+            painter.setPen(pen)
             # Horizontal line
             painter.drawLine(0, self.mouse_pos.y(), self.width(), self.mouse_pos.y())
             # Vertical line
