@@ -114,10 +114,19 @@ class UIManager:
 
         right_layout.addWidget(self.main_window.annotate_button)
         right_layout.addWidget(self.main_window.select_button)
+
+        right_layout.addStretch(1) # This pushes the following widgets to the bottom
+
         right_layout.addWidget(self.main_window.save_labels_button)
         right_layout.addWidget(self.main_window.clear_labels_button)
 
-        right_layout.addStretch(1)
+        # Add Next and Previous buttons
+        navigation_buttons_layout = QHBoxLayout()
+        self.main_window.previous_image_button = QPushButton("Previous")
+        self.main_window.next_image_button = QPushButton("Next")
+        navigation_buttons_layout.addWidget(self.main_window.previous_image_button)
+        navigation_buttons_layout.addWidget(self.main_window.next_image_button)
+        right_layout.addLayout(navigation_buttons_layout)
 
         self.main_window.right_panel.setWidget(right_content)
         self.main_window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.main_window.right_panel)

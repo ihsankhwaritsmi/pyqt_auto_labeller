@@ -29,4 +29,14 @@ QPushButton {
     padding: 3px;
 }
 QPushButton:hover { background-color: #5A5A5A; } /* Hover effect */
+QPushButton:pressed { /* Visual feedback for pressed state */
+    background-color: #3A3A3A; /* Darker background when pressed */
+    border: 1px solid #6A6A6A; /* More prominent border when pressed */
+}
+QPushButton:checked { /* New style for checked state */
+    background-color: #4A90E2; /* Blue selection color, similar to list item */
+    border: 1px solid #4A90E2; /* Match border color */
+    color: white;
+    font-weight: bold; /* Make text bold */
+}
 """

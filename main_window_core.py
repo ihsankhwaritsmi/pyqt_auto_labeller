@@ -30,6 +30,8 @@ class MainWindow(QMainWindow):
         self.ui_manager.main_window.select_button.clicked.connect(self._set_select_mode)
         self.ui_manager.main_window.save_labels_button.clicked.connect(self.dataset_manager.save_labels)
         self.ui_manager.main_window.clear_labels_button.clicked.connect(self.dataset_manager.clear_labels)
+        self.ui_manager.main_window.previous_image_button.clicked.connect(self._previous_image)
+        self.ui_manager.main_window.next_image_button.clicked.connect(self._next_image)
         self.ui_manager.main_window.canvas_label.label_needed_signal.connect(self.ui_manager.main_window.statusBar.showMessage)
 
     def apply_theme(self):
@@ -81,6 +83,20 @@ class MainWindow(QMainWindow):
         label_id_to_delete = current_item.data(Qt.ItemDataRole.UserRole)
         label_name_to_delete = current_item.text()
         self.dataset_manager.delete_label(label_id_to_delete, label_name_to_delete, current_item)
+
+    def _previous_image(self):
+        current_row = self.ui_manager.main_window.left_panel_list.currentRow()
+        if current_row > 0:
+            self.ui_manager.main_window.left_panel_list.setCurrentRow(current_row - 1)
+        else:
+            self.ui_manager.main_window.statusBar.showMessage("Already at the first image.")
+
+    def _next_image(self):
+        current_row = self.ui_manager.main_window.left_panel_list.currentRow()
+        if current_row < self.ui_manager.main_window.left_panel_list.count() - 1:
+            self.ui_manager.main_window.left_panel_list.setCurrentRow(current_row + 1)
+        else:
+            self.ui_manager.main_window.statusBar.showMessage("Already at the last image.")
 
     def closeEvent(self, event):
         self.dataset_manager.save_labels_to_json()
