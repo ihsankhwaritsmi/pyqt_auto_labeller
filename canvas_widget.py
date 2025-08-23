@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QLabel, QWidget
-from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF
+from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF, QRectF, QSizeF
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform
 
 class ZoomPanLabel(QLabel):
@@ -12,19 +12,57 @@ class ZoomPanLabel(QLabel):
         self.is_panning = False
         self.space_pressed = False # Added flag for spacebar state
         self.last_pan_pos = QPoint()
+        self.current_mode = "select" # Default mode
+        self.drawing_box = False
+        self.start_point = QPointF() # Change to QPointF
+        self.current_rect = QRectF() # Change to QRectF for image coordinates
+        self.bounding_boxes = [] # List to store bounding boxes: [(class_id, QRectF), ...]
+        self.original_width = None
+        self.original_height = None
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def widget_to_image_coords(self, point: QPointF) -> QPointF:
+        if self.zoom_level == 0:
+            return QPointF(0, 0)
+        # Adjust for pan offset first, then scale
+        return (point - QPointF(self.pan_offset)) / self.zoom_level
+
+    def image_to_widget_coords(self, point: QPointF) -> QPointF:
+        # Scale first, then adjust for pan offset
+        return point * self.zoom_level + QPointF(self.pan_offset)
+
+    def rect_to_image_coords(self, rect: QRect) -> QRectF:
+        top_left_image = self.widget_to_image_coords(QPointF(rect.topLeft()))
+        bottom_right_image = self.widget_to_image_coords(QPointF(rect.bottomRight()))
+        return QRectF(top_left_image, bottom_right_image)
+
+    def rect_to_widget_coords(self, rect: QRectF) -> QRect:
+        top_left_widget = self.image_to_widget_coords(rect.topLeft())
+        bottom_right_widget = self.image_to_widget_coords(rect.bottomRight())
+        return QRect(top_left_widget.toPoint(), bottom_right_widget.toPoint())
+
+    def set_mode(self, mode):
+        self.current_mode = mode
+        if mode == "annotate":
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        else: # select mode or other modes
+            self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def update_cursor(self):
         if self.is_panning:
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif self.space_pressed:
             self.setCursor(Qt.CursorShape.OpenHandCursor)
+        elif self.current_mode == "annotate" and self.drawing_box:
+            self.setCursor(Qt.CursorShape.CrossCursor) # Keep crosshair while drawing
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def set_pixmap(self, pixmap):
         self.original_pixmap = pixmap
+        self.original_width = pixmap.width()
+        self.original_height = pixmap.height()
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
         self.update_display()
@@ -58,6 +96,21 @@ class ZoomPanLabel(QLabel):
         
         # Draw the scaled pixmap onto the label
         painter.drawPixmap(draw_rect, self.current_pixmap_scaled)
+
+        # Draw bounding boxes
+        if self.current_mode == "annotate":
+            # Draw current rectangle being drawn
+            # Draw current rectangle being drawn (convert from image to widget coords)
+            if self.drawing_box:
+                painter.setPen(Qt.GlobalColor.red) # Red color for bounding box
+                painter.setBrush(Qt.BrushStyle.NoBrush) # No fill
+                painter.drawRect(self.rect_to_widget_coords(self.current_rect))
+
+            # Draw all saved bounding boxes (convert from image to widget coords)
+            painter.setPen(Qt.GlobalColor.green) # Green color for saved boxes
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for class_id, rect_image_coords in self.bounding_boxes:
+                painter.drawRect(self.rect_to_widget_coords(rect_image_coords))
         
         painter.end()
 
@@ -65,10 +118,14 @@ class ZoomPanLabel(QLabel):
         if self.original_pixmap is None:
             super().wheelEvent(event)
             return
+            
+        # If in annotation mode and drawing, do not allow zoom/pan
+        if self.current_mode == "annotate" and self.drawing_box:
+            return
 
         zoom_in_factor = 1.15
         zoom_out_factor = 1 / zoom_in_factor
-
+        
         # Get mouse position relative to the widget
         mouse_pos = event.position()
 
@@ -101,8 +158,13 @@ class ZoomPanLabel(QLabel):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # If spacebar is pressed, start panning
-            if self.space_pressed: # Check if spacebar is held
+            if self.current_mode == "annotate":
+                if not self.space_pressed: # Only draw if not panning
+                    self.drawing_box = True
+                    self.start_point = self.widget_to_image_coords(event.position()) # Convert to image coordinates
+                    self.current_rect = QRectF(self.start_point, QSizeF()) # Initialize with start point and zero size (QRectF)
+                    self.update_cursor() # Update cursor to crosshair
+            elif self.space_pressed: # If spacebar is pressed, start panning
                 self.is_panning = True # Enable panning
                 self.last_pan_pos = event.pos()
         elif event.button() == Qt.MouseButton.MiddleButton: # Example: Middle mouse button for panning if spacebar is not used
@@ -121,13 +183,26 @@ class ZoomPanLabel(QLabel):
             self.update_display()
         elif self.space_pressed: # If space is pressed but not panning, show OpenHandCursor
             self.setCursor(Qt.CursorShape.OpenHandCursor)
+        elif self.current_mode == "annotate" and self.drawing_box:
+            # Update the current rectangle being drawn, converting mouse position to image coordinates
+            self.current_rect.setBottomRight(self.widget_to_image_coords(event.position()))
+            self.update_display()
+            self.update_cursor() # Ensure cursor stays as crosshair
         else: # If not panning and space is not pressed, show default cursor
             self.setCursor(Qt.CursorShape.ArrowCursor)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.is_panning:
+            if self.drawing_box: # If we were drawing a box
+                self.drawing_box = False
+                # Add the completed bounding box to the list (already in image coordinates)
+                # For now, we'll use a placeholder class_id '0'
+                self.bounding_boxes.append((0, self.current_rect.normalized())) # Ensure rect is normalized
+                self.current_rect = QRectF() # Clear the current rectangle
+                self.update_display()
+                self.update_cursor() # Reset cursor if needed
+            elif self.is_panning:
                 self.is_panning = False # Stop panning on left button release
                 if self.space_pressed:
                     self.setCursor(Qt.CursorShape.OpenHandCursor) # Revert to OpenHand if space is still held
@@ -154,3 +229,10 @@ class ZoomPanLabel(QLabel):
 
     def sizeHint(self):
         return QSize(400, 400)
+
+    def get_bounding_boxes(self):
+        return self.bounding_boxes
+
+    def clear_bounding_boxes(self):
+        self.bounding_boxes = []
+        self.update_display()

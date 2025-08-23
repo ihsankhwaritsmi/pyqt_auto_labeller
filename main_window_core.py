@@ -231,9 +231,14 @@ class MainWindow(QMainWindow):
         self.save_labels_button = QPushButton("Save Labels")
         self.clear_labels_button = QPushButton("Clear Labels")
 
-        # Connect buttons to placeholder methods (implement functionality later)
-        self.annotate_button.clicked.connect(self.toggle_annotate_mode)
-        self.select_button.clicked.connect(self.toggle_select_mode)
+        # Make mode buttons checkable and set initial state
+        self.annotate_button.setCheckable(True)
+        self.select_button.setCheckable(True)
+        self.select_button.setChecked(True) # Select mode is default
+
+        # Connect buttons to methods
+        self.annotate_button.clicked.connect(self._set_annotate_mode)
+        self.select_button.clicked.connect(self._set_select_mode)
         self.save_labels_button.clicked.connect(self.save_labels)
         self.clear_labels_button.clicked.connect(self.clear_labels)
 
@@ -274,19 +279,79 @@ class MainWindow(QMainWindow):
         # Update the visibility icon on the item itself (handled within ImageListItemWidget)
         # This is already done by toggle_visibility, but good to be aware of.
 
-    # Placeholder methods for the new buttons
-    def toggle_annotate_mode(self):
-        print("Annotate Mode Toggled") # Placeholder action
-        pass
+    def _set_annotate_mode(self):
+        self.canvas_label.set_mode("annotate")
+        self.annotate_button.setChecked(True)
+        self.select_button.setChecked(False)
+        self.statusBar.showMessage("Mode: Annotate")
 
-    def toggle_select_mode(self):
-        print("Select Mode Toggled") # Placeholder action
-        pass
+    def _set_select_mode(self):
+        self.canvas_label.set_mode("select")
+        self.select_button.setChecked(True)
+        self.annotate_button.setChecked(False)
+        self.statusBar.showMessage("Mode: Select")
 
     def save_labels(self):
-        print("Labels Saved") # Placeholder action
-        pass
+        current_item = self.left_panel_list.currentItem()
+        if not current_item:
+            self.statusBar.showMessage("No image selected to save labels.")
+            return
+
+        widget = self.left_panel_list.itemWidget(current_item)
+        if not widget or not hasattr(widget, 'image_path'):
+            self.statusBar.showMessage("Could not get image path.")
+            return
+
+        image_path = widget.image_path
+        image_filename = os.path.basename(image_path)
+        base_name, _ = os.path.splitext(image_filename)
+        label_filename = base_name + ".txt"
+        label_filepath = os.path.join(self.dataset_folder, label_filename)
+
+        bounding_boxes = self.canvas_label.get_bounding_boxes()
+        
+        if not bounding_boxes:
+            self.statusBar.showMessage("No bounding boxes to save.")
+            # Optionally, delete existing label file if no boxes are present
+            if os.path.exists(label_filepath):
+                try:
+                    os.remove(label_filepath)
+                    self.statusBar.showMessage(f"Removed empty label file: {label_filename}")
+                except OSError as e:
+                    self.statusBar.showMessage(f"Error removing file {label_filename}: {e}")
+            return
+
+        # Get original image dimensions for normalization
+        original_width = self.canvas_label.original_width
+        original_height = self.canvas_label.original_height
+
+        if original_width is None or original_height is None or original_width == 0 or original_height == 0:
+            self.statusBar.showMessage("Error: Original image dimensions not available for normalization.")
+            return
+
+        try:
+            with open(label_filepath, 'w') as f:
+                for class_id, rect in bounding_boxes:
+                    # Calculate YOLO format coordinates
+                    # Ensure rect is valid before calculating
+                    if rect.width() <= 0 or rect.height() <= 0:
+                        continue # Skip invalid rectangles
+
+                    center_x = (rect.x() + rect.width() / 2) / original_width
+                    center_y = (rect.y() + rect.height() / 2) / original_height
+                    width = rect.width() / original_width
+                    height = rect.height() / original_height
+
+                    # Ensure values are within [0, 1] range and formatted correctly
+                    f.write(f"{class_id} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f}\n")
+            
+            self.statusBar.showMessage(f"Labels saved to {label_filename}")
+        except IOError as e:
+            self.statusBar.showMessage(f"Error saving labels to {label_filename}: {e}")
+        except Exception as e:
+            self.statusBar.showMessage(f"An unexpected error occurred: {e}")
+
 
     def clear_labels(self):
-        print("Labels Cleared") # Placeholder action
-        pass
+        self.canvas_label.clear_bounding_boxes()
+        self.statusBar.showMessage("All bounding boxes cleared.")
