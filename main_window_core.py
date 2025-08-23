@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.dataset_folder = None # Store the selected dataset folder path
         self.image_files = [] # Store list of image file paths
         self.image_visibility = {} # Dictionary to store visibility state of images
+        self.image_bounding_boxes = {} # Dictionary to store bounding boxes per image: {image_path: [(class_id, QRectF), ...]}
+        self.current_image_path = None # Track the currently displayed image path
         self.setup_ui()
         self.apply_theme() # Apply initial theme
 
@@ -100,6 +102,7 @@ class MainWindow(QMainWindow):
 
         self.image_files = []
         self.image_visibility = {} # Reset visibility states
+        self.image_bounding_boxes = {} # Reset bounding boxes for all images
         self.left_panel_list.clear() # Clear existing list items
 
         # Supported image extensions
@@ -115,6 +118,7 @@ class MainWindow(QMainWindow):
                 if file_ext in supported_extensions:
                     self.image_files.append(file_path)
                     self.image_visibility[file_path] = True # Set default visibility to True
+                    self.image_bounding_boxes[file_path] = [] # Initialize empty list for bounding boxes
 
                     # Create a custom widget for the list item
                     list_item_widget = ImageListItemWidget(file_path)
@@ -136,21 +140,31 @@ class MainWindow(QMainWindow):
     def display_image(self, image_path):
         # Check visibility before displaying
         if image_path in self.image_visibility and not self.image_visibility[image_path]:
-            # If image is hidden, we might want to clear the canvas or show a placeholder
-            # For now, let's assume ZoomPanLabel handles empty state gracefully.
-            # If ZoomPanLabel has a default text, it will be shown.
-            # If not, we might need to set a placeholder pixmap or text.
-            # For now, we'll just return, letting ZoomPanLabel's paintEvent handle it.
+            # If image is hidden, clear the canvas
+            self.canvas_label.set_pixmap(QPixmap()) # Set an empty pixmap to clear
+            self.canvas_label.clear_bounding_boxes() # Clear any existing boxes
+            self.statusBar.showMessage(f"Image hidden: {os.path.basename(image_path)}")
+            self.current_image_path = None
             return
 
         pixmap = QPixmap(image_path)
         if pixmap.isNull():
-            # Handle error case, perhaps by showing an error message on the canvas
-            # For now, let ZoomPanLabel's paintEvent handle the empty state.
+            self.canvas_label.set_pixmap(QPixmap()) # Clear canvas on error
+            self.canvas_label.clear_bounding_boxes()
+            self.statusBar.showMessage(f"Error loading image: {os.path.basename(image_path)}")
+            self.current_image_path = None
             return
 
-        # Use the ZoomPanLabel's set_pixmap method, which handles scaling and drawing
+        # Set the new pixmap
         self.canvas_label.set_pixmap(pixmap)
+        self.current_image_path = image_path # Update current image path
+
+        # Load bounding boxes for the new image
+        if image_path in self.image_bounding_boxes:
+            self.canvas_label.set_bounding_boxes(self.image_bounding_boxes[image_path])
+        else:
+            self.canvas_label.clear_bounding_boxes() # No boxes for this image yet
+
         self.statusBar.showMessage(f"Displaying: {os.path.basename(image_path)}")
 
 
@@ -261,11 +275,24 @@ class MainWindow(QMainWindow):
         self.statusBar.showMessage("Ready")
 
     def on_image_list_item_changed(self, current_item, previous_item):
+        # Save bounding boxes of the previously displayed image
+        if previous_item and self.current_image_path:
+            # Get bounding boxes from canvas_label and store them
+            self.image_bounding_boxes[self.current_image_path] = self.canvas_label.get_bounding_boxes()
+
         if current_item:
             # Get the custom widget associated with the selected item
             widget = self.left_panel_list.itemWidget(current_item)
             if widget and isinstance(widget, ImageListItemWidget):
                 self.display_image(widget.image_path)
+        else:
+            # If no item is selected, clear the canvas and current image path
+            if self.current_image_path:
+                self.image_bounding_boxes[self.current_image_path] = self.canvas_label.get_bounding_boxes()
+            self.canvas_label.set_pixmap(QPixmap()) # Clear the canvas
+            self.canvas_label.clear_bounding_boxes()
+            self.current_image_path = None
+            self.statusBar.showMessage("No image selected.")
 
     def on_visibility_changed(self, image_path, is_visible):
         self.image_visibility[image_path] = is_visible
@@ -308,10 +335,11 @@ class MainWindow(QMainWindow):
         label_filename = base_name + ".txt"
         label_filepath = os.path.join(self.dataset_folder, label_filename)
 
-        bounding_boxes = self.canvas_label.get_bounding_boxes()
+        # Get bounding boxes from the stored dictionary, not directly from canvas_label
+        bounding_boxes = self.image_bounding_boxes.get(image_path, [])
         
         if not bounding_boxes:
-            self.statusBar.showMessage("No bounding boxes to save.")
+            self.statusBar.showMessage("No bounding boxes to save for this image.")
             # Optionally, delete existing label file if no boxes are present
             if os.path.exists(label_filepath):
                 try:
@@ -353,5 +381,9 @@ class MainWindow(QMainWindow):
 
 
     def clear_labels(self):
-        self.canvas_label.clear_bounding_boxes()
-        self.statusBar.showMessage("All bounding boxes cleared.")
+        if self.current_image_path and self.current_image_path in self.image_bounding_boxes:
+            self.image_bounding_boxes[self.current_image_path] = [] # Clear boxes in storage
+            self.canvas_label.clear_bounding_boxes() # Clear boxes on canvas
+            self.statusBar.showMessage("Bounding boxes cleared for current image.")
+        else:
+            self.statusBar.showMessage("No image selected or no bounding boxes to clear.")

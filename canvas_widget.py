@@ -233,6 +233,10 @@ class ZoomPanLabel(QLabel):
     def get_bounding_boxes(self):
         return self.bounding_boxes
 
+    def set_bounding_boxes(self, boxes):
+        self.bounding_boxes = boxes
+        self.update_display()
+
     def clear_bounding_boxes(self):
         self.bounding_boxes = []
         self.update_display()
