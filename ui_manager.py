@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStatusBar,
     QToolBar, QDockWidget, QFileDialog, QListWidget, QListWidgetItem,
-    QFrame, QPushButton, QStyle, QSizePolicy, QInputDialog, QLineEdit, QApplication
+    QFrame, QPushButton, QStyle, QSizePolicy, QInputDialog, QLineEdit, QApplication, QComboBox
 )
 from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF
 from PyQt6.QtGui import QPixmap, QImageReader, QIcon
@@ -57,6 +57,15 @@ class UIManager:
         left_content_widget = QWidget()
         left_layout = QVBoxLayout(left_content_widget)
         
+        # Filter controls
+        filter_layout = QHBoxLayout()
+        filter_label = QLabel("Filter:")
+        self.main_window.filter_combobox = QComboBox()
+        self.main_window.filter_combobox.addItems(["All", "Labelled", "Unlabelled"])
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.main_window.filter_combobox)
+        left_layout.addLayout(filter_layout)
+
         self.main_window.left_panel_list = QListWidget()
         left_layout.addWidget(self.main_window.left_panel_list)
         
@@ -92,7 +101,7 @@ class UIManager:
 
         self.main_window.left_panel.setWidget(left_content_widget)
         self.main_window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.main_window.left_panel)
-        self.main_window.left_panel.setFixedWidth(250)
+        self.main_window.left_panel.setFixedWidth(280) # Increased width
 
     def setup_right_panel(self):
         self.main_window.right_panel = QDockWidget("Properties")

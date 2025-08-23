@@ -23,6 +23,7 @@ class MainWindow(QMainWindow):
         self.ui_manager.main_window.load_dataset_action.triggered.connect(self.dataset_manager.load_dataset)
         self.ui_manager.main_window.left_panel_list.currentItemChanged.connect(self.dataset_manager.on_image_list_item_changed)
         self.ui_manager.main_window.label_list_widget.currentItemChanged.connect(self.dataset_manager.on_label_selected)
+        self.ui_manager.main_window.filter_combobox.currentIndexChanged.connect(self.dataset_manager.apply_filter)
         self.ui_manager.main_window.add_label_button.clicked.connect(self._add_label_dialog)
         self.ui_manager.main_window.edit_label_button.clicked.connect(self._edit_label_dialog)
         self.ui_manager.main_window.delete_label_button.clicked.connect(self._delete_label_dialog)

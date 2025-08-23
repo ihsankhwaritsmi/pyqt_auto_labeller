@@ -12,12 +12,14 @@ class DatasetManager:
         self.main_window = main_window
         self.dataset_folder = None
         self.image_files = []
-        self.image_visibility = {}
+        self.image_visibility = {} # {image_path: True/False (based on filter and manual toggle)}
+        self.image_labelled_status = {} # {image_path: True/False (based on label file existence)}
         self.image_bounding_boxes = {} # {image_path: [(class_id, QRectF), ...]}
         self.current_image_path = None
         self.labels = [] # [{'id': 0, 'name': 'label1'}, ...]
         self.current_label_id = -1
         self.has_unsaved_changes = False # New flag to track unsaved changes
+        self.current_filter = "All" # Default filter
 
     def set_unsaved_changes(self):
         self.has_unsaved_changes = True
@@ -28,13 +30,13 @@ class DatasetManager:
         if folder_path:
             self.dataset_folder = folder_path
             QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-            QApplication.processEvents()
+            QApplication.processEvents() # Process events to ensure cursor changes immediately
 
             self.populate_image_list()
             self.load_labels_from_json()
             self.main_window.statusBar.showMessage(f"Dataset loaded: {os.path.basename(folder_path)}")
 
-            QApplication.restoreOverrideCursor()
+            QApplication.restoreOverrideCursor() # Restore cursor after all loading is done
         else:
             self.main_window.statusBar.showMessage("Dataset loading cancelled")
 
@@ -44,12 +46,15 @@ class DatasetManager:
 
         self.image_files = []
         self.image_visibility = {}
+        self.image_labelled_status = {}
         self.image_bounding_boxes = {}
         self.labels = []
         self.current_label_id = -1
         self.main_window.left_panel_list.clear()
         self.main_window.label_list_widget.clear()
         self.has_unsaved_changes = False # Reset on new dataset load
+        self.current_filter = "All" # Reset filter on new dataset load
+        self.main_window.filter_combobox.setCurrentText("All") # Reset combobox
 
         supported_extensions = QImageReader.supportedImageFormats()
         supported_extensions = [ext.data().decode('ascii') for ext in supported_extensions]
@@ -60,26 +65,20 @@ class DatasetManager:
                 file_ext = os.path.splitext(filename)[1].lower().lstrip('.')
                 if file_ext in supported_extensions:
                     self.image_files.append(file_path)
-                    self.image_visibility[file_path] = True
+                    self.image_visibility[file_path] = True # Initially all are visible
                     self.image_bounding_boxes[file_path] = []
 
                     label_filename = os.path.splitext(os.path.basename(file_path))[0] + ".txt"
                     label_filepath = os.path.join(self.dataset_folder, label_filename)
                     is_labelled = os.path.exists(label_filepath) and os.path.getsize(label_filepath) > 0
-
-                    list_item_widget = ImageListItemWidget(file_path)
-                    list_item_widget.visibility_changed.connect(self.on_visibility_changed)
-                    list_item_widget.set_labelled_status(is_labelled)
-
-                    list_item = QListWidgetItem(self.main_window.left_panel_list)
-                    list_item.setSizeHint(list_item_widget.sizeHint())
-                    self.main_window.left_panel_list.setItemWidget(list_item, list_item_widget)
+                    self.image_labelled_status[file_path] = is_labelled # Store labelled status
+        
+        # After populating image_files and their statuses, apply the initial filter
+        self.apply_filter(0) # Apply "All" filter initially (index 0)
 
         if not self.image_files:
             self.main_window.statusBar.showMessage("No images found in the selected folder.")
-        else:
-            self.main_window.left_panel_list.setCurrentRow(0)
-            self.display_image(self.image_files[0])
+        # The first image will be displayed by apply_filter
 
     def display_image(self, image_path):
         if image_path in self.image_visibility and not self.image_visibility[image_path]:
@@ -283,45 +282,47 @@ class DatasetManager:
             self.main_window.statusBar.showMessage("No dataset folder loaded.")
             return
 
-        image_filename = os.path.basename(image_path)
-        base_name, _ = os.path.splitext(image_filename)
-        label_filename = base_name + ".txt"
-        label_filepath = os.path.join(self.dataset_folder, label_filename)
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        QApplication.processEvents() # Ensure cursor changes immediately
+        try:
+            image_filename = os.path.basename(image_path)
+            base_name, _ = os.path.splitext(image_filename)
+            label_filename = base_name + ".txt"
+            label_filepath = os.path.join(self.dataset_folder, label_filename)
 
-        bounding_boxes = self.image_bounding_boxes.get(image_path, [])
-        
-        if not bounding_boxes:
-            self.main_window.statusBar.showMessage(f"No bounding boxes to save for {os.path.basename(image_path)}.")
-            if os.path.exists(label_filepath):
-                try:
-                    os.remove(label_filepath)
-                    self.main_window.statusBar.showMessage(f"Removed empty label file: {label_filename}")
-                    self._update_image_list_item_labelled_status(image_path, False)
-                except OSError as e:
-                    self.main_window.statusBar.showMessage(f"Error removing file {label_filename}: {e}")
-            self.has_unsaved_changes = False # No boxes, so no unsaved changes
-            return
-
-        # Need to get original dimensions for the image being saved, not necessarily the currently displayed one
-        # This assumes original_width/height are properties of the image itself, not just the canvas
-        # For now, we'll use the canvas's dimensions, but this might need refinement if images have different sizes
-        original_width = self.main_window.canvas_label.original_width
-        original_height = self.main_window.canvas_label.original_height
-
-        # If the image being saved is not the current one, we might not have its dimensions readily available
-        # A more robust solution would store dimensions per image in image_bounding_boxes or a separate dict
-        if image_path != self.current_image_path or original_width is None or original_height is None or original_width == 0 or original_height == 0:
-            # Attempt to load dimensions if not current image or dimensions are missing
-            temp_pixmap = QPixmap(image_path)
-            if not temp_pixmap.isNull():
-                original_width = temp_pixmap.width()
-                original_height = temp_pixmap.height()
-            else:
-                self.main_window.statusBar.showMessage(f"Error: Could not get original image dimensions for {os.path.basename(image_path)} for normalization.")
+            bounding_boxes = self.image_bounding_boxes.get(image_path, [])
+            
+            if not bounding_boxes:
+                self.main_window.statusBar.showMessage(f"No bounding boxes to save for {os.path.basename(image_path)}.")
+                if os.path.exists(label_filepath):
+                    try:
+                        os.remove(label_filepath)
+                        self.main_window.statusBar.showMessage(f"Removed empty label file: {label_filename}")
+                        self._update_image_list_item_labelled_status(image_path, False)
+                    except OSError as e:
+                        self.main_window.statusBar.showMessage(f"Error removing file {label_filename}: {e}")
+                self.has_unsaved_changes = False # No boxes, so no unsaved changes
                 return
 
+            # Need to get original dimensions for the image being saved, not necessarily the currently displayed one
+            # This assumes original_width/height are properties of the image itself, not just the canvas
+            # For now, we'll use the canvas's dimensions, but this might need refinement if images have different sizes
+            original_width = self.main_window.canvas_label.original_width
+            original_height = self.main_window.canvas_label.original_height
 
-        try:
+            # If the image being saved is not the current one, we might not have its dimensions readily available
+            # A more robust solution would store dimensions per image in image_bounding_boxes or a separate dict
+            if image_path != self.current_image_path or original_width is None or original_height is None or original_width == 0 or original_height == 0:
+                # Attempt to load dimensions if not current image or dimensions are missing
+                temp_pixmap = QPixmap(image_path)
+                if not temp_pixmap.isNull():
+                    original_width = temp_pixmap.width()
+                    original_height = temp_pixmap.height()
+                else:
+                    self.main_window.statusBar.showMessage(f"Error: Could not get original image dimensions for {os.path.basename(image_path)} for normalization.")
+                    return
+
+
             with open(label_filepath, 'w') as f:
                 for class_id, rect in bounding_boxes:
                     if rect.width() <= 0 or rect.height() <= 0:
@@ -333,7 +334,7 @@ class DatasetManager:
                     height = rect.height() / original_height
 
                     f.write(f"{class_id} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f}\n")
-            
+                
             self.main_window.statusBar.showMessage(f"Labels saved to {label_filename}")
             self._update_image_list_item_labelled_status(image_path, True)
             self.has_unsaved_changes = False # Labels are now saved
@@ -341,14 +342,37 @@ class DatasetManager:
             self.main_window.statusBar.showMessage(f"Error saving labels to {label_filename}: {e}")
         except Exception as e:
             self.main_window.statusBar.showMessage(f"An unexpected error occurred: {e}")
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def clear_labels(self):
         if self.current_image_path and self.current_image_path in self.image_bounding_boxes:
             self.image_bounding_boxes[self.current_image_path] = []
             self.main_window.canvas_label.clear_bounding_boxes()
             self.main_window.statusBar.showMessage("Bounding boxes cleared for current image.")
-            self._update_image_list_item_labelled_status(self.current_image_path, False)
-            self.has_unsaved_changes = True # Clearing labels is a change
+            
+            QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+            QApplication.processEvents() # Ensure cursor changes immediately
+            try:
+                # Also delete the corresponding label file
+                image_filename = os.path.basename(self.current_image_path)
+                base_name, _ = os.path.splitext(image_filename)
+                label_filename = base_name + ".txt"
+                label_filepath = os.path.join(self.dataset_folder, label_filename)
+                if os.path.exists(label_filepath):
+                    try:
+                        os.remove(label_filepath)
+                        self.main_window.statusBar.showMessage(f"Removed label file: {label_filename}")
+                        self.has_unsaved_changes = False # No unsaved changes after deleting the file
+                    except OSError as e:
+                        self.main_window.statusBar.showMessage(f"Error removing label file {label_filename}: {e}")
+                        self.has_unsaved_changes = True # If deletion failed, still consider it as having unsaved changes (e.g., if user wants to retry saving)
+                else:
+                    self.has_unsaved_changes = False # No label file existed, so no unsaved changes after clearing
+
+                self._update_image_list_item_labelled_status(self.current_image_path, False)
+            finally:
+                QApplication.restoreOverrideCursor()
         else:
             self.main_window.statusBar.showMessage("No image selected or no bounding boxes to clear.")
 
@@ -371,9 +395,85 @@ class DatasetManager:
             self.main_window.statusBar.showMessage("No label selected.")
 
     def _update_image_list_item_labelled_status(self, image_path: str, is_labelled: bool):
+        self.image_labelled_status[image_path] = is_labelled # Update internal status
         for i in range(self.main_window.left_panel_list.count()):
             item = self.main_window.left_panel_list.item(i)
             widget = self.main_window.left_panel_list.itemWidget(item)
             if isinstance(widget, ImageListItemWidget) and widget.image_path == image_path:
                 widget.set_labelled_status(is_labelled)
                 break
+        
+        # Re-apply the current filter to update the list display
+        filter_index = self.main_window.filter_combobox.findText(self.current_filter)
+        if filter_index != -1:
+            self.apply_filter(filter_index)
+
+    def apply_filter(self, index: int):
+        """Applies a filter to the image list based on the selected index."""
+        if not self.dataset_folder:
+            return
+
+        filter_type = self.main_window.filter_combobox.itemText(index)
+        self.current_filter = filter_type
+        
+        # Disconnect signal to prevent issues during list clearing and repopulation
+        self.main_window.left_panel_list.currentItemChanged.disconnect(self.on_image_list_item_changed)
+        self.main_window.left_panel_list.clear()
+        
+        filtered_image_paths = []
+        for image_path in self.image_files:
+            should_be_visible = False
+            if filter_type == "All":
+                should_be_visible = True
+            elif filter_type == "Labelled":
+                should_be_visible = self.image_labelled_status.get(image_path, False)
+            elif filter_type == "Unlabelled":
+                should_be_visible = not self.image_labelled_status.get(image_path, False)
+            
+            self.image_visibility[image_path] = should_be_visible
+
+            if should_be_visible:
+                filtered_image_paths.append(image_path)
+                list_item_widget = ImageListItemWidget(image_path)
+                list_item_widget.visibility_changed.connect(self.on_visibility_changed)
+                list_item_widget.set_labelled_status(self.image_labelled_status.get(image_path, False))
+
+                list_item = QListWidgetItem(self.main_window.left_panel_list)
+                list_item.setSizeHint(list_item_widget.sizeHint())
+                self.main_window.left_panel_list.setItemWidget(list_item, list_item_widget)
+        
+        if not filtered_image_paths:
+            self.main_window.statusBar.showMessage(f"No {filter_type.lower()} images found.")
+            self.main_window.canvas_label.set_pixmap(QPixmap())
+            self.main_window.canvas_label.clear_bounding_boxes()
+            self.current_image_path = None
+        else:
+            # Try to maintain current selection if it's still visible
+            if self.current_image_path and self.current_image_path in filtered_image_paths:
+                for i in range(self.main_window.left_panel_list.count()):
+                    item = self.main_window.left_panel_list.item(i)
+                    widget = self.main_window.left_panel_list.itemWidget(item)
+                    if isinstance(widget, ImageListItemWidget) and widget.image_path == self.current_image_path:
+                        self.main_window.left_panel_list.setCurrentItem(item)
+                        self.display_image(self.current_image_path)
+                        break
+                else: # If current image not found in new list, select the first one
+                    self.main_window.left_panel_list.setCurrentRow(0)
+                    first_widget = self.main_window.left_panel_list.itemWidget(self.main_window.left_panel_list.item(0))
+                    if first_widget:
+                        self.display_image(first_widget.image_path)
+            else: # If no current image or it's not in the filtered list, select the first one
+                self.main_window.left_panel_list.setCurrentRow(0)
+                first_widget = self.main_window.left_panel_list.itemWidget(self.main_window.left_panel_list.item(0))
+                if first_widget:
+                    self.display_image(first_widget.image_path)
+                else:
+                    self.main_window.canvas_label.set_pixmap(QPixmap())
+                    self.main_window.canvas_label.clear_bounding_boxes()
+                    self.current_image_path = None
+                    self.main_window.statusBar.showMessage("No image selected after filtering.")
+        
+        # Reconnect the signal after the list has been repopulated
+        self.main_window.left_panel_list.currentItemChanged.connect(self.on_image_list_item_changed)
+
+        self.main_window.statusBar.showMessage(f"Filter applied: {filter_type}. Displaying {len(filtered_image_paths)} images.")
