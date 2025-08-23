@@ -172,18 +172,18 @@ class ZoomPanLabel(QLabel):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.current_mode == "annotate":
-                if not self.space_pressed: # Only draw if not panning
-                    self.drawing_box = True
-                    self.start_point = self.widget_to_image_coords(event.position()) # Convert to image coordinates
-                    self.current_rect = QRectF(self.start_point, QSizeF()) # Initialize with start point and zero size (QRectF)
-                    self.update_cursor() # Update cursor to crosshair
-            elif self.space_pressed: # If spacebar is pressed, start panning
+            if self.current_mode == "annotate" and self.space_pressed:
+                self.is_panning = True # Enable panning in annotate mode with spacebar + left click
+                self.last_pan_pos = event.pos()
+            elif self.current_mode == "annotate" and not self.space_pressed:
+                self.drawing_box = True
+                self.start_point = self.widget_to_image_coords(event.position()) # Convert to image coordinates
+                self.current_rect = QRectF(self.start_point, QSizeF()) # Initialize with start point and zero size (QRectF)
+                self.update_cursor() # Update cursor to crosshair
+            elif self.space_pressed: # Panning in select mode with spacebar + left click
                 self.is_panning = True # Enable panning
                 self.last_pan_pos = event.pos()
-        elif event.button() == Qt.MouseButton.MiddleButton: # Example: Middle mouse button for panning if spacebar is not used
-            # For middle button panning, we assume it works independently for now,
-            # as the user only specified left-click panning with spacebar.
+        elif event.button() == Qt.MouseButton.MiddleButton:
             self.is_panning = True
             self.last_pan_pos = event.pos()
         super().mousePressEvent(event)
