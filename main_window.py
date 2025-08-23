@@ -240,19 +240,17 @@ class MainWindow(QMainWindow):
         # Removed the direct stylesheet for QListWidget::item:selected as it will be handled by custom widget styling
         left_layout.addWidget(self.left_panel_list)
         
-        # Removed the separator as it's not in the example layer panel
-        # self.separator = QFrame()
-        # self.separator.setFrameShape(QFrame.Shape.HLine)
-        # self.separator.setFrameShadow(QFrame.Shadow.Sunken)
-        # left_layout.addWidget(self.separator)
+        self.separator = QFrame()
+        self.separator.setFrameShape(QFrame.Shape.HLine)
+        self.separator.setFrameShadow(QFrame.Shadow.Sunken)
+        left_layout.addWidget(self.separator)
 
-        # Removed the "Label Management Section" as it's not part of the layer panel
-        # self.label_management_widget = QWidget()
-        # label_management_layout = QVBoxLayout(self.label_management_widget)
-        # label_management_label = QLabel("Label Management Section")
-        # label_management_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # label_management_layout.addWidget(label_management_label)
-        # left_layout.addWidget(self.label_management_widget)
+        self.label_management_widget = QWidget()
+        label_management_layout = QVBoxLayout(self.label_management_widget)
+        label_management_label = QLabel("Label Management Section")
+        label_management_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label_management_layout.addWidget(label_management_label)
+        left_layout.addWidget(self.label_management_widget)
         
         # Adjusted stretch factors to give more space to the list widget
         left_layout.setStretchFactor(self.left_panel_list, 10) 
