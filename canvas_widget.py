@@ -1,8 +1,10 @@
 from PyQt6.QtWidgets import QLabel, QWidget
-from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF, QRectF, QSizeF
+from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF, QRectF, QSizeF, pyqtSignal # Import pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform
 
 class ZoomPanLabel(QLabel):
+    label_needed_signal = pyqtSignal(str) # New signal to request status bar message, defined as class attribute
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.original_pixmap = None
@@ -17,6 +19,7 @@ class ZoomPanLabel(QLabel):
         self.start_point = QPointF() # Change to QPointF
         self.current_rect = QRectF() # Change to QRectF for image coordinates
         self.bounding_boxes = [] # List to store bounding boxes: [(class_id, QRectF), ...]
+        self.current_class_id = -1 # New: Store the currently selected class ID for new boxes
         self.original_width = None
         self.original_height = None
         self.setMouseTracking(True)
@@ -197,8 +200,10 @@ class ZoomPanLabel(QLabel):
             if self.drawing_box: # If we were drawing a box
                 self.drawing_box = False
                 # Add the completed bounding box to the list (already in image coordinates)
-                # For now, we'll use a placeholder class_id '0'
-                self.bounding_boxes.append((0, self.current_rect.normalized())) # Ensure rect is normalized
+                if self.current_class_id != -1: # Only add if a label is selected
+                    self.bounding_boxes.append((self.current_class_id, self.current_rect.normalized())) # Use current_class_id
+                else:
+                    self.label_needed_signal.emit("Please select a label before annotating.") # Emit signal
                 self.current_rect = QRectF() # Clear the current rectangle
                 self.update_display()
                 self.update_cursor() # Reset cursor if needed
@@ -236,6 +241,9 @@ class ZoomPanLabel(QLabel):
     def set_bounding_boxes(self, boxes):
         self.bounding_boxes = boxes
         self.update_display()
+
+    def set_current_class_id(self, class_id: int):
+        self.current_class_id = class_id
 
     def clear_bounding_boxes(self):
         self.bounding_boxes = []

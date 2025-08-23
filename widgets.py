@@ -38,6 +38,13 @@ class ImageListItemWidget(QWidget):
         self.name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred) # Allow name to expand
         self.layout.addWidget(self.name_label)
 
+        # Labelled Status Label
+        self.status_label = QLabel("") # Initialize empty
+        self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;") # Green color for "Labelled"
+        self.status_label.setFixedSize(60, 20) # Fixed size for consistency
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.layout.addWidget(self.status_label)
+
         # Visibility Button
         self.visibility_button = QPushButton()
         self.visibility_button.setFixedSize(20, 20) # Further reduced size for thinner list items
@@ -47,6 +54,12 @@ class ImageListItemWidget(QWidget):
         self.layout.addWidget(self.visibility_button)
 
         self.setLayout(self.layout)
+
+    def set_labelled_status(self, is_labelled: bool):
+        if is_labelled:
+            self.status_label.setText("Labelled")
+        else:
+            self.status_label.setText("") # Clear text if not labelled
 
     def load_thumbnail(self):
         pixmap = QPixmap(self.image_path)
