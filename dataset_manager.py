@@ -1,7 +1,7 @@
 import os
 import json
 from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF, QObject
-from PyQt6.QtGui import QPixmap, QImageReader
+from PyQt6.QtGui import QPixmap, QImageReader, QColor # Import QColor
 from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdit, QApplication, QMessageBox
 
 from widgets import ImageListItemWidget
@@ -19,8 +19,9 @@ class DatasetManager(QObject):
         self.image_labelled_status = {} # {image_path: True/False (based on label file existence)}
         self.image_bounding_boxes = {} # {image_path: [(class_id, QRectF), ...]}
         self.current_image_path = None
-        self.labels = [] # [{'id': 0, 'name': 'label1'}, ...]
+        self.labels = [] # [{'id': 0, 'name': 'label1', 'color': '#RRGGBB'}, ...]
         self.current_label_id = -1
+        self.label_colors = {} # {label_id: QColor}
         self.has_unsaved_changes = False # New flag to track unsaved changes
         self.current_filter = "All" # Default filter
 
@@ -211,6 +212,7 @@ class DatasetManager(QObject):
                     loaded_labels = json.load(f)
                     if isinstance(loaded_labels, list):
                         self.labels = loaded_labels
+                        self._assign_colors_to_labels() # Assign colors to loaded labels
                         for label in self.labels:
                             item = QListWidgetItem(label['name'])
                             item.setData(Qt.ItemDataRole.UserRole, label['id'])
@@ -241,16 +243,37 @@ class DatasetManager(QObject):
         except IOError as e:
             self.main_window.statusBar.showMessage(f"Error saving labels to labels.json: {e}")
 
+    def _generate_random_color(self):
+        # Generate a random color that is not too dark or too light
+        r = 0
+        g = 0
+        b = 0
+        while (r + g + b < 300) or (r + g + b > 600): # Ensure reasonable brightness
+            r = QColor.fromHsv(QApplication.instance().rng.randint(0, 359), 200, 200).red()
+            g = QColor.fromHsv(QApplication.instance().rng.randint(0, 359), 200, 200).green()
+            b = QColor.fromHsv(QApplication.instance().rng.randint(0, 359), 200, 200).blue()
+        return QColor(r, g, b).name() # Return hex string
+
+    def _assign_colors_to_labels(self):
+        self.label_colors = {}
+        for label in self.labels:
+            if 'color' not in label:
+                label['color'] = self._generate_random_color()
+            self.label_colors[label['id']] = QColor(label['color'])
+        self.labels_updated.emit(self.labels) # Emit signal after assigning colors
+
     def add_label(self, label_name, label_id):
-        new_label = {'id': label_id, 'name': label_name}
+        color = self._generate_random_color()
+        new_label = {'id': label_id, 'name': label_name, 'color': color}
         self.labels.append(new_label)
+        self.label_colors[label_id] = QColor(color) # Store QColor object
         item = QListWidgetItem(label_name)
         item.setData(Qt.ItemDataRole.UserRole, label_id)
         self.main_window.label_list_widget.addItem(item)
         self.main_window.label_list_widget.setCurrentItem(item)
         self.save_labels_to_json()
         self.labels_updated.emit(self.labels) # Emit signal after adding a label
-        self.main_window.statusBar.showMessage(f"Label '{label_name}' added.")
+        self.main_window.statusBar.showMessage(f"Label '{label_name}' added with color {color}.")
 
     def edit_label(self, label_id, new_label_name, current_item):
         for label in self.labels:
@@ -261,6 +284,7 @@ class DatasetManager(QObject):
         self.save_labels_to_json()
         self.labels_updated.emit(self.labels) # Emit signal after editing a label
         self.main_window.statusBar.showMessage(f"Label updated to '{new_label_name}'.")
+        # No need to update color here, as only name is changed
 
     def delete_label(self, label_id_to_delete, label_name_to_delete, current_item):
         self.labels = [label for label in self.labels if label['id'] != label_id_to_delete]

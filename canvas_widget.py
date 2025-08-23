@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QLabel, QWidget, QMenu, QInputDialog # Import QMenu and QInputDialog
 from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF, QRectF, QSizeF, pyqtSignal
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform, QAction # Import QAction
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform, QAction, QColor # Import QAction and QColor
 
 class ZoomPanLabel(QLabel):
     label_needed_signal = pyqtSignal(str) # New signal to request status bar message, defined as class attribute
@@ -32,7 +32,8 @@ class ZoomPanLabel(QLabel):
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.selected_box_index = -1 # New: Store the index of the currently selected bounding box
-        self.labels_map = {} # New: Store class_id to class_name mapping
+        self.labels_map = {} # New: Store class_id to {'name': '...', 'color': '...'} mapping
+        self.label_colors_map = {} # New: Store class_id to QColor mapping
 
     def _save_history_state(self):
         # Clear any redo history if a new action is performed
@@ -143,23 +144,40 @@ class ZoomPanLabel(QLabel):
         # Draw bounding boxes
         if self.bounding_boxes:
             for i, (class_id, rect_image_coords) in enumerate(self.bounding_boxes):
+                box_color = self.label_colors_map.get(class_id, Qt.GlobalColor.green) # Default to green if color not found
+                
                 if i == self.selected_box_index:
-                    painter.setPen(Qt.GlobalColor.red) # Red color for selected box
+                    # For selected box, use a slightly different color or thicker pen
+                    pen = painter.pen()
+                    pen.setColor(Qt.GlobalColor.red) # Red for selected
+                    pen.setWidth(2)
+                    painter.setPen(pen)
                 else:
-                    painter.setPen(Qt.GlobalColor.green) # Green color for unselected boxes
+                    pen = painter.pen()
+                    pen.setColor(box_color)
+                    pen.setWidth(1)
+                    painter.setPen(pen)
+                
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 rect_widget_coords = self.rect_to_widget_coords(rect_image_coords)
                 painter.drawRect(rect_widget_coords)
 
                 # Draw class name if available
                 if class_id in self.labels_map:
-                    class_name = self.labels_map[class_id]
+                    label_info = self.labels_map[class_id]
+                    class_name = label_info['name']
+                    # Use a contrasting color for text, or white/black depending on background
                     painter.setPen(Qt.GlobalColor.white) # White color for text
                     painter.drawText(rect_widget_coords.topLeft() + QPoint(5, 15), class_name)
 
         # Draw current rectangle being drawn only in annotate mode
         if self.current_mode == "annotate" and self.drawing_box:
-            painter.setPen(Qt.GlobalColor.red) # Red color for bounding box
+            # Use the color of the currently selected label for the drawing box
+            draw_box_color = self.label_colors_map.get(self.current_class_id, Qt.GlobalColor.red)
+            pen = painter.pen()
+            pen.setColor(draw_box_color)
+            pen.setWidth(2)
+            painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush) # No fill
             painter.drawRect(self.rect_to_widget_coords(self.current_rect))
 
@@ -275,10 +293,11 @@ class ZoomPanLabel(QLabel):
             current_class_id, rect = self.bounding_boxes[self.selected_box_index]
             
             # Prepare a list of existing label names for the QInputDialog
-            label_names = [self.labels_map[label_id] for label_id in sorted(self.labels_map.keys())]
+            label_names = [info['name'] for info in self.labels_map.values()]
             
             # Find the current label name
-            current_label_name = self.labels_map.get(current_class_id, f"ID {current_class_id} (Unknown)")
+            current_label_info = self.labels_map.get(current_class_id)
+            current_label_name = current_label_info['name'] if current_label_info else f"ID {current_class_id} (Unknown)"
             
             # Get the new label name from the user
             new_label_name, ok = QInputDialog.getItem(self, "Edit Class ID", "Select New Class:", label_names, 
@@ -288,8 +307,8 @@ class ZoomPanLabel(QLabel):
             if ok and new_label_name:
                 # Find the class ID corresponding to the selected label name
                 new_class_id = -1
-                for label_id, name in self.labels_map.items():
-                    if name == new_label_name:
+                for label_id, info in self.labels_map.items():
+                    if info['name'] == new_label_name:
                         new_class_id = label_id
                         break
                 
@@ -398,7 +417,8 @@ class ZoomPanLabel(QLabel):
         self.current_class_id = class_id
 
     def set_labels_map(self, labels: list):
-        self.labels_map = {label['id']: label['name'] for label in labels}
+        self.labels_map = {label['id']: {'name': label['name'], 'color': label['color']} for label in labels}
+        self.label_colors_map = {label['id']: QColor(label['color']) for label in labels}
         self.update_display() # Redraw to show updated labels
 
     def clear_bounding_boxes(self):
