@@ -304,6 +304,24 @@ class DatasetManager:
         else:
             self.main_window.statusBar.showMessage("No image selected or no bounding boxes to clear.")
 
+    def on_label_selected(self, current_item, previous_item):
+        """Handles selection changes in the label list widget."""
+        if current_item:
+            label_id = current_item.data(Qt.ItemDataRole.UserRole)
+            if label_id is not None:
+                self.current_label_id = label_id
+                # Update the canvas widget to know which label is currently selected for annotation
+                self.main_window.ui_manager.main_window.canvas_label.set_current_class_id(label_id)
+                self.main_window.statusBar.showMessage(f"Selected label: {current_item.text()}")
+            else:
+                self.current_label_id = -1
+                self.main_window.ui_manager.main_window.canvas_label.set_current_class_id(-1)
+                self.main_window.statusBar.showMessage("No label ID found for selected item.")
+        else:
+            self.current_label_id = -1
+            self.main_window.ui_manager.main_window.canvas_label.set_current_class_id(-1)
+            self.main_window.statusBar.showMessage("No label selected.")
+
     def _update_image_list_item_labelled_status(self, image_path: str, is_labelled: bool):
         for i in range(self.main_window.left_panel_list.count()):
             item = self.main_window.left_panel_list.item(i)
