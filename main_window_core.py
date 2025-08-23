@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import QApplication # Import QApplication
 # Import custom widget and styles
 from widgets import ImageListItemWidget
 from styles import DARK_THEME
+from canvas_widget import ZoomPanLabel
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -135,20 +136,21 @@ class MainWindow(QMainWindow):
     def display_image(self, image_path):
         # Check visibility before displaying
         if image_path in self.image_visibility and not self.image_visibility[image_path]:
-            self.canvas_label.setText(f"Image '{os.path.basename(image_path)}' is hidden")
-            self.canvas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            # If image is hidden, we might want to clear the canvas or show a placeholder
+            # For now, let's assume ZoomPanLabel handles empty state gracefully.
+            # If ZoomPanLabel has a default text, it will be shown.
+            # If not, we might need to set a placeholder pixmap or text.
+            # For now, we'll just return, letting ZoomPanLabel's paintEvent handle it.
             return
 
         pixmap = QPixmap(image_path)
         if pixmap.isNull():
-            self.canvas_label.setText(f"Failed to load image: {os.path.basename(image_path)}")
-            self.canvas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            # Handle error case, perhaps by showing an error message on the canvas
+            # For now, let ZoomPanLabel's paintEvent handle the empty state.
             return
 
-        # Scale pixmap to fit the label while maintaining aspect ratio
-        scaled_pixmap = pixmap.scaled(self.canvas_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        self.canvas_label.setPixmap(scaled_pixmap)
-        self.canvas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Use the ZoomPanLabel's set_pixmap method, which handles scaling and drawing
+        self.canvas_label.set_pixmap(pixmap)
         self.statusBar.showMessage(f"Displaying: {os.path.basename(image_path)}")
 
 
@@ -174,8 +176,7 @@ class MainWindow(QMainWindow):
         self.canvas_widget = QWidget()
         # Set a darker background for the canvas widget
         self.canvas_widget.setStyleSheet("background-color: #000000;") # Set to black
-        self.canvas_label = QLabel("Canvas Area")
-        self.canvas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.canvas_label = ZoomPanLabel() # Use the custom ZoomPanLabel
         canvas_layout = QVBoxLayout(self.canvas_widget)
         canvas_layout.addWidget(self.canvas_label)
         self.setCentralWidget(self.canvas_widget)
