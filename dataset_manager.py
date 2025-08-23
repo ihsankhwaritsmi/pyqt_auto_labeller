@@ -145,6 +145,10 @@ class DatasetManager:
         self.main_window.statusBar.showMessage(f"Displaying: {os.path.basename(image_path)}")
 
     def on_image_list_item_changed(self, current_item, previous_item):
+        # Always update the bounding boxes from the canvas to the internal dictionary before any checks or saves
+        if self.current_image_path:
+            self.image_bounding_boxes[self.current_image_path] = self.main_window.canvas_label.get_bounding_boxes()
+
         if self.has_unsaved_changes and self.current_image_path:
             reply = QMessageBox.warning(
                 self.main_window,
@@ -154,29 +158,32 @@ class DatasetManager:
             )
 
             if reply == QMessageBox.StandardButton.Save:
-                self.save_labels()
+                # Save labels for the previous image (the one with unsaved changes)
+                previous_image_widget = self.main_window.left_panel_list.itemWidget(previous_item)
+                if previous_image_widget and isinstance(previous_image_widget, ImageListItemWidget):
+                    self.save_labels_for_path(previous_image_widget.image_path)
+                else:
+                    self.main_window.statusBar.showMessage("Error: Could not determine path for previous image to save labels.")
+            elif reply == QMessageBox.StandardButton.Discard:
+                self.has_unsaved_changes = False # Discard changes
             elif reply == QMessageBox.StandardButton.Cancel:
                 # Revert to previous item if user cancels
                 self.main_window.left_panel_list.setCurrentItem(previous_item)
                 return
             # If discard, just proceed without saving
 
-        if previous_item and self.current_image_path:
-            self.image_bounding_boxes[self.current_image_path] = self.main_window.canvas_label.get_bounding_boxes()
-
         if current_item:
             widget = self.main_window.left_panel_list.itemWidget(current_item)
             if widget and isinstance(widget, ImageListItemWidget):
                 self.display_image(widget.image_path)
         else:
-            if self.current_image_path:
-                self.image_bounding_boxes[self.current_image_path] = self.main_window.canvas_label.get_bounding_boxes()
             self.main_window.canvas_label.set_pixmap(QPixmap())
             self.main_window.canvas_label.clear_bounding_boxes()
             self.current_image_path = None
             self.main_window.statusBar.showMessage("No image selected.")
         
-        self.has_unsaved_changes = False # Reset after handling changes for the previous image
+        # The has_unsaved_changes flag is now managed by save_labels() or explicit discard.
+        # No need to reset it here unconditionally.
 
     def on_visibility_changed(self, image_path, is_visible):
         self.image_visibility[image_path] = is_visible
@@ -264,17 +271,18 @@ class DatasetManager:
         self.main_window.statusBar.showMessage(f"Label '{label_name_to_delete}' deleted.")
 
     def save_labels(self):
-        current_item = self.main_window.left_panel_list.currentItem()
-        if not current_item:
+        """Saves labels for the currently displayed image."""
+        if not self.current_image_path:
             self.main_window.statusBar.showMessage("No image selected to save labels.")
             return
+        self.save_labels_for_path(self.current_image_path)
 
-        widget = self.main_window.left_panel_list.itemWidget(current_item)
-        if not widget or not hasattr(widget, 'image_path'):
-            self.main_window.statusBar.showMessage("Could not get image path.")
+    def save_labels_for_path(self, image_path: str):
+        """Saves labels for a specific image path."""
+        if not self.dataset_folder:
+            self.main_window.statusBar.showMessage("No dataset folder loaded.")
             return
 
-        image_path = widget.image_path
         image_filename = os.path.basename(image_path)
         base_name, _ = os.path.splitext(image_filename)
         label_filename = base_name + ".txt"
@@ -283,7 +291,7 @@ class DatasetManager:
         bounding_boxes = self.image_bounding_boxes.get(image_path, [])
         
         if not bounding_boxes:
-            self.main_window.statusBar.showMessage("No bounding boxes to save for this image.")
+            self.main_window.statusBar.showMessage(f"No bounding boxes to save for {os.path.basename(image_path)}.")
             if os.path.exists(label_filepath):
                 try:
                     os.remove(label_filepath)
@@ -291,14 +299,27 @@ class DatasetManager:
                     self._update_image_list_item_labelled_status(image_path, False)
                 except OSError as e:
                     self.main_window.statusBar.showMessage(f"Error removing file {label_filename}: {e}")
+            self.has_unsaved_changes = False # No boxes, so no unsaved changes
             return
 
+        # Need to get original dimensions for the image being saved, not necessarily the currently displayed one
+        # This assumes original_width/height are properties of the image itself, not just the canvas
+        # For now, we'll use the canvas's dimensions, but this might need refinement if images have different sizes
         original_width = self.main_window.canvas_label.original_width
         original_height = self.main_window.canvas_label.original_height
 
-        if original_width is None or original_height is None or original_width == 0 or original_height == 0:
-            self.main_window.statusBar.showMessage("Error: Original image dimensions not available for normalization.")
-            return
+        # If the image being saved is not the current one, we might not have its dimensions readily available
+        # A more robust solution would store dimensions per image in image_bounding_boxes or a separate dict
+        if image_path != self.current_image_path or original_width is None or original_height is None or original_width == 0 or original_height == 0:
+            # Attempt to load dimensions if not current image or dimensions are missing
+            temp_pixmap = QPixmap(image_path)
+            if not temp_pixmap.isNull():
+                original_width = temp_pixmap.width()
+                original_height = temp_pixmap.height()
+            else:
+                self.main_window.statusBar.showMessage(f"Error: Could not get original image dimensions for {os.path.basename(image_path)} for normalization.")
+                return
+
 
         try:
             with open(label_filepath, 'w') as f:
