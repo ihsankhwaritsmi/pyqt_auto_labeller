@@ -27,7 +27,6 @@ class ZoomPanLabel(QLabel):
         
         self.history = [] # Stores states of bounding_boxes for undo/redo
         self.history_index = -1 # Current position in history
-        self._save_history_state() # Save initial empty state
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -110,6 +109,9 @@ class ZoomPanLabel(QLabel):
         self.original_height = pixmap.height()
         self.zoom_level = 1.0
         self.pan_offset = QPoint(0, 0)
+        self.bounding_boxes = [] # Clear bounding boxes when a new image is set
+        self.history = [] # Clear history
+        self.history_index = -1 # Reset history index
         self.update_display()
 
     def update_display(self):
@@ -405,6 +407,10 @@ class ZoomPanLabel(QLabel):
 
     def set_bounding_boxes(self, boxes):
         self.bounding_boxes = boxes
+        # When bounding boxes are set (e.g., on image load), clear history and save this as the initial state
+        self.history = []
+        self.history_index = -1
+        self._save_history_state()
         self.update_display()
 
     def set_current_class_id(self, class_id: int):
