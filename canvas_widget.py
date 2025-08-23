@@ -312,3 +312,23 @@ class ZoomPanLabel(QLabel):
     def clear_bounding_boxes(self):
         self.bounding_boxes = []
         self.update_display()
+
+    def fit_to_width(self):
+        if self.original_pixmap is None:
+            return
+
+        # Calculate zoom level to fit width
+        widget_width = self.width()
+        original_image_width = self.original_pixmap.width()
+        
+        if original_image_width > 0:
+            self.zoom_level = widget_width / original_image_width
+        else:
+            self.zoom_level = 1.0 # Default if image width is zero
+
+        # Center the image horizontally and vertically
+        scaled_height = self.original_pixmap.height() * self.zoom_level
+        self.pan_offset.setX(0)
+        self.pan_offset.setY(int((self.height() - scaled_height) / 2))
+        
+        self.update_display()

@@ -97,6 +97,7 @@ class DatasetManager:
             return
 
         self.main_window.canvas_label.set_pixmap(pixmap)
+        self.main_window.canvas_label.fit_to_width() # Fit image to width after setting pixmap
         self.current_image_path = image_path
         self.main_window.statusBar.showMessage(f"Image dimensions: {self.main_window.canvas_label.original_width}x{self.main_window.canvas_label.original_height}")
         self.has_unsaved_changes = False # No unsaved changes after loading a new image
