@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.ui_manager.main_window.next_image_button.clicked.connect(self._next_image)
         self.ui_manager.main_window.canvas_label.label_needed_signal.connect(self.ui_manager.main_window.statusBar.showMessage)
         self.ui_manager.main_window.canvas_label.bounding_box_added.connect(self.dataset_manager.set_unsaved_changes)
+        # Pass the labels map to the canvas widget when labels are loaded or changed
+        self.dataset_manager.labels_updated.connect(self.ui_manager.main_window.canvas_label.set_labels_map)
 
     def apply_theme(self):
         self.ui_manager.apply_theme()

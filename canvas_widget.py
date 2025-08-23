@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QLabel, QWidget
-from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF, QRectF, QSizeF, pyqtSignal # Import pyqtSignal
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform
+from PyQt6.QtWidgets import QLabel, QWidget, QMenu, QInputDialog # Import QMenu and QInputDialog
+from PyQt6.QtCore import Qt, QPoint, QRect, QSize, QEvent, QPointF, QRectF, QSizeF, pyqtSignal
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QTransform, QAction # Import QAction
 
 class ZoomPanLabel(QLabel):
     label_needed_signal = pyqtSignal(str) # New signal to request status bar message, defined as class attribute
@@ -31,6 +31,8 @@ class ZoomPanLabel(QLabel):
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.selected_box_index = -1 # New: Store the index of the currently selected bounding box
+        self.labels_map = {} # New: Store class_id to class_name mapping
 
     def _save_history_state(self):
         # Clear any redo history if a new action is performed
@@ -139,12 +141,21 @@ class ZoomPanLabel(QLabel):
         painter.drawPixmap(draw_rect, self.current_pixmap_scaled)
 
         # Draw bounding boxes
-        # Always draw saved bounding boxes
         if self.bounding_boxes:
-            painter.setPen(Qt.GlobalColor.green) # Green color for saved boxes
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            for class_id, rect_image_coords in self.bounding_boxes:
-                painter.drawRect(self.rect_to_widget_coords(rect_image_coords))
+            for i, (class_id, rect_image_coords) in enumerate(self.bounding_boxes):
+                if i == self.selected_box_index:
+                    painter.setPen(Qt.GlobalColor.red) # Red color for selected box
+                else:
+                    painter.setPen(Qt.GlobalColor.green) # Green color for unselected boxes
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                rect_widget_coords = self.rect_to_widget_coords(rect_image_coords)
+                painter.drawRect(rect_widget_coords)
+
+                # Draw class name if available
+                if class_id in self.labels_map:
+                    class_name = self.labels_map[class_id]
+                    painter.setPen(Qt.GlobalColor.white) # White color for text
+                    painter.drawText(rect_widget_coords.topLeft() + QPoint(5, 15), class_name)
 
         # Draw current rectangle being drawn only in annotate mode
         if self.current_mode == "annotate" and self.drawing_box:
@@ -207,6 +218,14 @@ class ZoomPanLabel(QLabel):
         self.zoom_level = new_zoom_level
         self.update_display()
 
+    def _get_bounding_box_at_pos(self, pos: QPoint) -> int:
+        """Returns the index of the bounding box at the given widget position, or -1 if none."""
+        for i, (class_id, rect_image_coords) in enumerate(self.bounding_boxes):
+            rect_widget_coords = self.rect_to_widget_coords(rect_image_coords)
+            if rect_widget_coords.contains(pos):
+                return i
+        return -1
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.current_mode == "annotate" and self.space_pressed:
@@ -220,10 +239,57 @@ class ZoomPanLabel(QLabel):
             elif self.space_pressed: # Panning in select mode with spacebar + left click
                 self.is_panning = True # Enable panning
                 self.last_pan_pos = event.pos()
+            elif self.current_mode == "select":
+                # In select mode, left click can select a box
+                self.selected_box_index = self._get_bounding_box_at_pos(event.pos())
+                self.update_display() # Redraw to highlight selected box
+        elif event.button() == Qt.MouseButton.RightButton and self.current_mode == "select":
+            # Handle right-click for context menu in select mode
+            clicked_box_index = self._get_bounding_box_at_pos(event.pos())
+            if clicked_box_index != -1:
+                self.selected_box_index = clicked_box_index
+                self.update_display() # Highlight the box before showing menu
+                self._show_context_menu(event.pos())
+            else:
+                self.selected_box_index = -1 # Deselect if right-clicked outside a box
+                self.update_display()
         elif event.button() == Qt.MouseButton.MiddleButton:
             self.is_panning = True
             self.last_pan_pos = event.pos()
         super().mousePressEvent(event)
+
+    def _show_context_menu(self, pos: QPoint):
+        menu = QMenu(self)
+        edit_action = QAction("Edit Class ID", self)
+        delete_action = QAction("Delete", self)
+
+        edit_action.triggered.connect(self._edit_selected_bounding_box)
+        delete_action.triggered.connect(self._delete_selected_bounding_box)
+
+        menu.addAction(edit_action)
+        menu.addAction(delete_action)
+        menu.exec(self.mapToGlobal(pos))
+
+    def _edit_selected_bounding_box(self):
+        if self.selected_box_index != -1:
+            current_class_id, rect = self.bounding_boxes[self.selected_box_index]
+            text, ok = QInputDialog.getInt(self, "Edit Class ID", "New Class ID:", current_class_id, 0, 9999)
+            if ok:
+                self.bounding_boxes[self.selected_box_index] = (text, rect)
+                self._save_history_state()
+                self.update_display()
+                self.label_needed_signal.emit(f"Bounding box class ID updated to {text}.")
+            self.selected_box_index = -1 # Deselect after editing
+            self.update_display()
+
+    def _delete_selected_bounding_box(self):
+        if self.selected_box_index != -1:
+            del self.bounding_boxes[self.selected_box_index]
+            self._save_history_state()
+            self.update_display()
+            self.label_needed_signal.emit("Bounding box deleted.")
+            self.selected_box_index = -1 # Deselect after deleting
+            self.update_display()
 
     def mouseMoveEvent(self, event):
         if self.is_panning:
@@ -308,6 +374,10 @@ class ZoomPanLabel(QLabel):
 
     def set_current_class_id(self, class_id: int):
         self.current_class_id = class_id
+
+    def set_labels_map(self, labels: list):
+        self.labels_map = {label['id']: label['name'] for label in labels}
+        self.update_display() # Redraw to show updated labels
 
     def clear_bounding_boxes(self):
         self.bounding_boxes = []

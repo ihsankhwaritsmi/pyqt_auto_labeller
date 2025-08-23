@@ -1,14 +1,17 @@
 import os
 import json
-from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF
+from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF, QObject
 from PyQt6.QtGui import QPixmap, QImageReader
-from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdit, QApplication, QMessageBox # Import QMessageBox
+from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdit, QApplication, QMessageBox
 
 from widgets import ImageListItemWidget
 from canvas_widget import ZoomPanLabel
 
-class DatasetManager:
+class DatasetManager(QObject):
+    labels_updated = pyqtSignal(list) # New signal to emit when labels are updated
+    
     def __init__(self, main_window):
+        super().__init__() # Call the parent class's __init__ method
         self.main_window = main_window
         self.dataset_folder = None
         self.image_files = []
