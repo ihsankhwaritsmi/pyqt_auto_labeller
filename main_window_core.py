@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
     QVBoxLayout,
-    QHBoxLayout, # Import QHBoxLayout
+    QHBoxLayout,
     QLabel,
     QStatusBar,
     QToolBar,
@@ -13,76 +13,16 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QFrame,
-    QPushButton, # Import QPushButton
-    QStyle, # Import QStyle for icons
-    QSizePolicy # Import QSizePolicy
+    QPushButton,
+    QStyle,
+    QSizePolicy
 )
-from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal # Import QSize and pyqtSignal
-from PyQt6.QtGui import QPixmap, QImageReader, QIcon # Import QIcon
+from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal
+from PyQt6.QtGui import QPixmap, QImageReader, QIcon
 
-# Define a custom widget for list items
-class ImageListItemWidget(QWidget):
-    visibility_changed = pyqtSignal(str, bool) # Signal to emit image path and new visibility state
-
-    def __init__(self, image_path, parent=None):
-        super().__init__(parent)
-        self.image_path = image_path
-        self.is_visible = True # Default visibility
-
-        self.layout = QHBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0) # Remove margins for tight packing
-        self.layout.setSpacing(5) # Spacing between elements
-
-        # Thumbnail Label
-        self.thumbnail_label = QLabel()
-        self.thumbnail_label.setFixedSize(50, 50) # Fixed size for thumbnail
-        self.thumbnail_label.setScaledContents(True)
-        self.load_thumbnail()
-        self.layout.addWidget(self.thumbnail_label)
-
-        # Image Name Label
-        self.name_label = QLabel(os.path.basename(image_path))
-        self.name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred) # Allow name to expand
-        self.layout.addWidget(self.name_label)
-
-        # Visibility Button
-        self.visibility_button = QPushButton()
-        self.visibility_button.setFixedSize(30, 30)
-        self.visibility_button.setIconSize(QSize(20, 20))
-        self.update_visibility_icon()
-        self.visibility_button.clicked.connect(self.toggle_visibility)
-        self.layout.addWidget(self.visibility_button)
-
-        self.setLayout(self.layout)
-
-    def load_thumbnail(self):
-        pixmap = QPixmap(self.image_path)
-        if not pixmap.isNull():
-            scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            self.thumbnail_label.setPixmap(scaled_pixmap)
-        else:
-            self.thumbnail_label.setText("No Thumb") # Placeholder if loading fails
-
-    def toggle_visibility(self):
-        self.is_visible = not self.is_visible
-        self.update_visibility_icon()
-        # Signal that visibility has changed (to be handled by MainWindow)
-        self.visibility_changed.emit(self.image_path, self.is_visible)
-
-    def update_visibility_icon(self):
-        if self.is_visible:
-            # Use a standard eye icon (or a placeholder if not available)
-            # For simplicity, using a generic icon. A real eye icon would be better.
-            # Using SP_ComputerIcon as a placeholder for an eye icon.
-            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon) 
-            self.visibility_button.setIcon(icon)
-        else:
-            # Use a dimmed eye icon or a different icon to indicate hidden
-            # Using SP_ComputerIcon as a placeholder for a dimmed eye icon.
-            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon) 
-            self.visibility_button.setIcon(icon)
-
-# --- End of ImageListItemWidget ---
+# Import custom widget and styles
+from widgets import ImageListItemWidget
+from styles import DARK_THEME
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -98,40 +38,41 @@ class MainWindow(QMainWindow):
 
     def apply_theme(self):
         # Apply dark theme as per user request
-        # self.setStyleSheet(DARK_THEME) # Removed redundant call
+        self.setStyleSheet(DARK_THEME)
         # Add specific styles for the list widget to match layer panel appearance
-        self.setStyleSheet("""
-            QMainWindow { background-color: #2E2E2E; } /* Dark background for the main window */
-            QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; } /* Hide dock widget icons */
-            QDockWidget::title {
-                text-align: left; /* Align title to the left */
-                padding-left: 10px;
-                background-color: #3A3A3A; /* Darker title bar */
-                color: white;
-            }
-            QListWidget {
-                background-color: #3A3A3A; /* Dark background for the list */
-                border: 1px solid #4A4A4A; /* Subtle border */
-                color: white; /* White text */
-                padding: 5px;
-            }
-            QListWidget::item {
-                padding: 5px; /* Padding around each item */
-                border-bottom: 1px solid #4A4A4A; /* Separator line */
-            }
-            QListWidget::item:selected {
-                background-color: #4A90E2; /* Blue selection color */
-                color: white; /* White text on selection */
-            }
-            QLabel { color: white; } /* Ensure all labels are white */
-            QPushButton {
-                background-color: #4A4A4A; /* Button background */
-                border: 1px solid #5A5A5A; /* Button border */
-                color: white; /* Button text color */
-                padding: 3px;
-            }
-            QPushButton:hover { background-color: #5A5A5A; } /* Hover effect */
-        """)
+        # These are already included in DARK_THEME, so no need to repeat here.
+        # self.setStyleSheet("""
+        #     QMainWindow { background-color: #2E2E2E; } /* Dark background for the main window */
+        #     QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; } /* Hide dock widget icons */
+        #     QDockWidget::title {
+        #         text-align: left; /* Align title to the left */
+        #         padding-left: 10px;
+        #         background-color: #3A3A3A; /* Darker title bar */
+        #         color: white;
+        #     }
+        #     QListWidget {
+        #         background-color: #3A3A3A; /* Dark background for the list */
+        #         border: 1px solid #4A4A4A; /* Subtle border */
+        #         color: white; /* White text */
+        #         padding: 5px;
+        #     }
+        #     QListWidget::item {
+        #         padding: 5px; /* Padding around each item */
+        #         border-bottom: 1px solid #4A4A4A; /* Separator line */
+        #     }
+        #     QListWidget::item:selected {
+        #         background-color: #4A90E2; /* Blue selection color */
+        #         color: white; /* White text on selection */
+        #     }
+        #     QLabel { color: white; } /* Ensure all labels are white */
+        #     QPushButton {
+        #         background-color: #4A4A4A; /* Button background */
+        #         border: 1px solid #5A5A5A; /* Button border */
+        #         color: white; /* Button text color */
+        #         padding: 3px;
+        #     }
+        #     QPushButton:hover { background-color: #5A5A5A; } /* Hover effect */
+        # """)
 
 
     def load_dataset(self):
@@ -253,11 +194,17 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.label_management_widget)
         
         # Adjusted stretch factors to give more space to the list widget
-        left_layout.setStretchFactor(self.left_panel_list, 10) 
+        # The list widget should take 60% and label management 40%
+        left_layout.setStretchFactor(self.left_panel_list, 6) 
+        left_layout.addWidget(self.label_management_widget)
+        left_layout.setStretchFactor(self.label_management_widget, 4)
 
         self.left_panel.setWidget(left_content_widget)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.left_panel)
         self.left_panel.setFixedWidth(250) # Adjusted width to better fit content
+
+        # Connect the signal for item selection change in the list
+        self.left_panel_list.currentItemChanged.connect(self.on_image_list_item_changed)
 
     def setup_right_panel(self):
         self.right_panel = QDockWidget("Properties") # Changed title to "Properties"
@@ -293,4 +240,4 @@ class MainWindow(QMainWindow):
                 self.display_image(image_path)
         
         # Update the visibility icon on the item itself (handled within ImageListItemWidget)
-        # This is already done by toggle_visibility, but good to be aware.
+        # This is already done by toggle_visibility, but good to be aware of.
