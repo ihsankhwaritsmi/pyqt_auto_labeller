@@ -64,15 +64,14 @@ class ImageListItemWidget(QWidget):
 
     def update_visibility_icon(self):
         if self.is_visible:
-            # Use a standard eye icon (or a placeholder if not available)
-            # For simplicity, using a generic icon. A real eye icon would be better.
-            # Using SP_ComputerIcon as a placeholder for an eye icon.
-            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+            # Use a standard icon to indicate visibility (e.g., an open eye)
+            # Using SP_DialogYesButton as a placeholder for an "open eye" icon.
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogYesButton)
             self.visibility_button.setIcon(icon)
         else:
-            # Use a dimmed eye icon or a different icon to indicate hidden
-            # Using SP_ComputerIcon as a placeholder for a dimmed eye icon.
-            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+            # Use a standard icon to indicate hidden state (e.g., a closed eye)
+            # Using SP_DialogNoButton as a placeholder for a "closed eye" icon.
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogNoButton)
             self.visibility_button.setIcon(icon)
 
 # --- End of ImageListItemWidget ---
