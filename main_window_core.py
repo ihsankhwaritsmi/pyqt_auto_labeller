@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImageReader, QIcon
+from PyQt6.QtWidgets import QApplication # Import QApplication
 
 # Import custom widget and styles
 from widgets import ImageListItemWidget
@@ -80,8 +81,15 @@ class MainWindow(QMainWindow):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Dataset Folder")
         if folder_path:
             self.dataset_folder = folder_path
+            # Set busy cursor to indicate loading
+            QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+            QApplication.processEvents() # Ensure the cursor change is applied
+
             self.populate_image_list()
             self.statusBar.showMessage(f"Dataset loaded: {os.path.basename(folder_path)}")
+
+            # Restore default cursor after loading
+            QApplication.restoreOverrideCursor()
         else:
             self.statusBar.showMessage("Dataset loading cancelled")
 
@@ -164,6 +172,8 @@ class MainWindow(QMainWindow):
 
     def setup_canvas(self):
         self.canvas_widget = QWidget()
+        # Set a darker background for the canvas widget
+        self.canvas_widget.setStyleSheet("background-color: #000000;") # Set to black
         self.canvas_label = QLabel("Canvas Area")
         self.canvas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         canvas_layout = QVBoxLayout(self.canvas_widget)
@@ -171,7 +181,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.canvas_widget)
 
     def setup_left_panel(self):
-        self.left_panel = QDockWidget("Layers") # Changed title to "Layers"
+        self.left_panel = QDockWidget("Dataset Management") # Changed title to "Dataset Management"
         self.left_panel.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         
         left_content_widget = QWidget()
