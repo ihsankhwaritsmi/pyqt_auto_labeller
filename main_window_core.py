@@ -225,6 +225,27 @@ class MainWindow(QMainWindow):
         right_label = QLabel("Properties Panel Content")
         right_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(right_label)
+        # Add buttons to the right panel (toolbox)
+        self.annotate_button = QPushButton("Annotate Mode")
+        self.select_button = QPushButton("Select Mode")
+        self.save_labels_button = QPushButton("Save Labels")
+        self.clear_labels_button = QPushButton("Clear Labels")
+
+        # Connect buttons to placeholder methods (implement functionality later)
+        self.annotate_button.clicked.connect(self.toggle_annotate_mode)
+        self.select_button.clicked.connect(self.toggle_select_mode)
+        self.save_labels_button.clicked.connect(self.save_labels)
+        self.clear_labels_button.clicked.connect(self.clear_labels)
+
+        # Add buttons to the layout
+        right_layout.addWidget(self.annotate_button)
+        right_layout.addWidget(self.select_button)
+        right_layout.addWidget(self.save_labels_button)
+        right_layout.addWidget(self.clear_labels_button)
+
+        # Add a stretch to push buttons to the top if needed, or just let them fill
+        right_layout.addStretch(1)
+
         self.right_panel.setWidget(right_content)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.right_panel)
         self.right_panel.setFixedWidth(200)
@@ -252,3 +273,20 @@ class MainWindow(QMainWindow):
         
         # Update the visibility icon on the item itself (handled within ImageListItemWidget)
         # This is already done by toggle_visibility, but good to be aware of.
+
+    # Placeholder methods for the new buttons
+    def toggle_annotate_mode(self):
+        print("Annotate Mode Toggled") # Placeholder action
+        pass
+
+    def toggle_select_mode(self):
+        print("Select Mode Toggled") # Placeholder action
+        pass
+
+    def save_labels(self):
+        print("Labels Saved") # Placeholder action
+        pass
+
+    def clear_labels(self):
+        print("Labels Cleared") # Placeholder action
+        pass
