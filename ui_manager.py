@@ -124,6 +124,10 @@ class UIManager:
         right_layout.addWidget(self.main_window.annotate_button)
         right_layout.addWidget(self.main_window.select_button)
 
+        self.main_window.toggle_visibility_button = QPushButton("Toggle Bounding Box Visibility")
+        self.main_window.toggle_visibility_button.setEnabled(False) # Initially disabled
+        right_layout.addWidget(self.main_window.toggle_visibility_button)
+
         right_layout.addStretch(1) # This pushes the following widgets to the bottom
 
         right_layout.addWidget(self.main_window.save_labels_button)

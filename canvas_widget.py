@@ -34,6 +34,7 @@ class ZoomPanLabel(QLabel):
         self.selected_box_index = -1 # New: Store the index of the currently selected bounding box
         self.labels_map = {} # New: Store class_id to {'name': '...', 'color': '...'} mapping
         self.label_colors_map = {} # New: Store class_id to QColor mapping
+        self.bounding_boxes_visible = True # New: Flag to control bounding box visibility
 
     def _save_history_state(self):
         # Clear any redo history if a new action is performed
@@ -141,8 +142,8 @@ class ZoomPanLabel(QLabel):
         # Draw the scaled pixmap onto the label
         painter.drawPixmap(draw_rect, self.current_pixmap_scaled)
 
-        # Draw bounding boxes
-        if self.bounding_boxes:
+        # Draw bounding boxes only if visible
+        if self.bounding_boxes_visible and self.bounding_boxes:
             for i, (class_id, rect_image_coords) in enumerate(self.bounding_boxes):
                 box_color = self.label_colors_map.get(class_id, Qt.GlobalColor.green) # Default to green if color not found
                 
@@ -436,4 +437,12 @@ class ZoomPanLabel(QLabel):
         self.pan_offset.setX(0)
         self.pan_offset.setY(int((self.height() - scaled_height) / 2))
         
+        self.update_display()
+
+    def toggle_bounding_box_visibility(self):
+        self.bounding_boxes_visible = not self.bounding_boxes_visible
+        self.update_display()
+
+    def set_bounding_box_visibility(self, visible: bool):
+        self.bounding_boxes_visible = visible
         self.update_display()

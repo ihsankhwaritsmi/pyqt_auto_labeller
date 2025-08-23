@@ -37,8 +37,10 @@ class MainWindow(QMainWindow):
         self.ui_manager.main_window.next_image_button.clicked.connect(self._next_image)
         self.ui_manager.main_window.canvas_label.label_needed_signal.connect(self.ui_manager.main_window.statusBar.showMessage)
         self.ui_manager.main_window.canvas_label.bounding_box_added.connect(self.dataset_manager.set_unsaved_changes)
+        self.ui_manager.main_window.toggle_visibility_button.clicked.connect(self._toggle_bounding_box_visibility)
         # Pass the labels map to the canvas widget when labels are loaded or changed
         self.dataset_manager.labels_updated.connect(self.ui_manager.main_window.canvas_label.set_labels_map)
+        self.dataset_manager.current_image_has_bounding_boxes.connect(self._update_toggle_visibility_button_state)
 
     def apply_theme(self):
         self.ui_manager.apply_theme()
@@ -95,6 +97,20 @@ class MainWindow(QMainWindow):
             self.dataset_manager.save_labels()
             self.ui_manager.main_window.statusBar.showMessage("Labels saved via Ctrl+S.")
         super().keyPressEvent(event)
+
+    def _toggle_bounding_box_visibility(self):
+        self.ui_manager.main_window.canvas_label.toggle_bounding_box_visibility()
+        if self.ui_manager.main_window.canvas_label.bounding_boxes_visible:
+            self.ui_manager.main_window.statusBar.showMessage("Bounding boxes are now visible.")
+        else:
+            self.ui_manager.main_window.statusBar.showMessage("Bounding boxes are now hidden.")
+
+    def _update_toggle_visibility_button_state(self, has_bounding_boxes: bool):
+        self.ui_manager.main_window.toggle_visibility_button.setEnabled(has_bounding_boxes)
+        if not has_bounding_boxes:
+            # If no bounding boxes, ensure they are visible (or reset state)
+            self.ui_manager.main_window.canvas_label.set_bounding_box_visibility(True)
+
 
     def _previous_image(self):
         current_row = self.ui_manager.main_window.left_panel_list.currentRow()

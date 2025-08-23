@@ -9,6 +9,7 @@ from canvas_widget import ZoomPanLabel
 
 class DatasetManager(QObject):
     labels_updated = pyqtSignal(list) # New signal to emit when labels are updated
+    current_image_has_bounding_boxes = pyqtSignal(bool) # Signal to indicate if current image has bounding boxes
     
     def __init__(self, main_window):
         super().__init__() # Call the parent class's __init__ method
@@ -147,6 +148,7 @@ class DatasetManager(QObject):
         self.main_window.canvas_label.set_bounding_boxes(loaded_boxes)
 
         self.main_window.statusBar.showMessage(f"Displaying: {os.path.basename(image_path)}")
+        self.current_image_has_bounding_boxes.emit(bool(loaded_boxes)) # Emit signal based on loaded boxes
 
     def on_image_list_item_changed(self, current_item, previous_item):
         # Always update the bounding boxes from the canvas to the internal dictionary before any checks or saves
@@ -334,6 +336,7 @@ class DatasetManager(QObject):
                     except OSError as e:
                         self.main_window.statusBar.showMessage(f"Error removing file {label_filename}: {e}")
                 self.has_unsaved_changes = False # No boxes, so no unsaved changes
+                self.current_image_has_bounding_boxes.emit(False) # No bounding boxes after saving
                 return
 
             # Need to get original dimensions for the image being saved, not necessarily the currently displayed one
@@ -382,6 +385,7 @@ class DatasetManager(QObject):
             self.image_bounding_boxes[self.current_image_path] = []
             self.main_window.canvas_label.clear_bounding_boxes()
             self.main_window.statusBar.showMessage("Bounding boxes cleared for current image.")
+            self.current_image_has_bounding_boxes.emit(False) # No bounding boxes after clearing
             
             QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
             QApplication.processEvents() # Ensure cursor changes immediately
