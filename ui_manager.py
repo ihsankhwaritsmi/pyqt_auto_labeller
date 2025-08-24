@@ -133,7 +133,27 @@ class UIManager:
         self.main_window.toggle_visibility_button.setCheckable(True)
         self.main_window.toggle_visibility_button.setStyleSheet("QPushButton:checked { background-color: #4A90E2; color: white; border: 1px solid #4A90E2; font-weight: bold; }")
         right_layout.addWidget(self.main_window.toggle_visibility_button)
+
+        # Separator for auto label section
+        auto_label_separator = QFrame()
+        auto_label_separator.setFrameShape(QFrame.Shape.HLine)
+        auto_label_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        right_layout.addWidget(auto_label_separator)
+
+        # YOLO Model and Auto Label buttons
+        self.main_window.import_yolo_model_button = QPushButton("Import YOLO Model (.pt)")
+        right_layout.addWidget(self.main_window.import_yolo_model_button)
+
+        self.main_window.auto_label_button = QPushButton("Auto Label")
+        right_layout.addWidget(self.main_window.auto_label_button)
+
         right_layout.addStretch(1) # This pushes the following widgets to the bottom
+
+        # Separator for bottom buttons group
+        bottom_buttons_separator = QFrame()
+        bottom_buttons_separator.setFrameShape(QFrame.Shape.HLine)
+        bottom_buttons_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        right_layout.addWidget(bottom_buttons_separator)
 
         right_layout.addWidget(self.main_window.save_labels_button)
         right_layout.addWidget(self.main_window.clear_labels_button)
