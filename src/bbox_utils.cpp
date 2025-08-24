@@ -2,10 +2,19 @@
 #include <pybind11/stl.h> // For std::vector, std::string, etc.
 #include <random>
 #include <string>
-#include <iomanip> // For std::hex, std::setfill, std::setw
-#include <sstream> // For std::stringstream
+#include <iomanip>    // For std::hex, std::setfill, std::setw
+#include <sstream>    // For std::stringstream
+#include <filesystem> // For directory iteration and path manipulation
 
 namespace py = pybind11;
+namespace fs = std::filesystem; // Alias for convenience
+
+// Structure to represent an image file with its labelling status
+struct ImageInfo
+{
+    std::string path;
+    bool is_labelled;
+};
 
 // Structure to represent a bounding box in normalized (YOLO) format
 struct NormalizedBoundingBox
@@ -70,6 +79,59 @@ std::vector<PixelBoundingBox> convert_from_yolo_format(
         pixel_boxes.push_back({n_box.class_id, x, y, w, h});
     }
     return pixel_boxes;
+}
+
+// Function to scan a directory for image files and determine their label status
+std::vector<ImageInfo> scan_images_and_labels(const std::string &folder_path, const std::vector<std::string> &supported_extensions)
+{
+    std::vector<ImageInfo> image_infos;
+    fs::path dataset_folder_path(folder_path);
+
+    if (!fs::exists(dataset_folder_path) || !fs::is_directory(dataset_folder_path))
+    {
+        return image_infos; // Return empty if path doesn't exist or isn't a directory
+    }
+
+    for (const auto &entry : fs::directory_iterator(dataset_folder_path))
+    {
+        if (fs::is_regular_file(entry.path()))
+        {
+            std::string file_extension = entry.path().extension().string();
+            if (!file_extension.empty())
+            {
+                file_extension = file_extension.substr(1); // Remove the leading dot
+            }
+
+            // Convert to lowercase for case-insensitive comparison
+            std::transform(file_extension.begin(), file_extension.end(), file_extension.begin(),
+                           [](unsigned char c)
+                           { return std::tolower(c); });
+
+            bool is_supported_image = false;
+            for (const auto &ext : supported_extensions)
+            {
+                if (file_extension == ext)
+                {
+                    is_supported_image = true;
+                    break;
+                }
+            }
+
+            if (is_supported_image)
+            {
+                ImageInfo info;
+                info.path = entry.path().string();
+
+                // Construct label file path
+                std::string filename_stem = entry.path().stem().string();
+                fs::path label_filepath = dataset_folder_path / (filename_stem + ".txt");
+
+                info.is_labelled = fs::exists(label_filepath) && fs::file_size(label_filepath) > 0;
+                image_infos.push_back(info);
+            }
+        }
+    }
+    return image_infos;
 }
 
 // Random number generator for colors
@@ -176,4 +238,12 @@ PYBIND11_MODULE(bbox_utils, m)
 
     m.def("format_yolo_labels_to_string", &format_yolo_labels_to_string,
           "A function that formats a list of normalized bounding boxes into a YOLO .txt file string.");
+
+    py::class_<ImageInfo>(m, "ImageInfo")
+        .def(py::init<>())
+        .def_readwrite("path", &ImageInfo::path)
+        .def_readwrite("is_labelled", &ImageInfo::is_labelled);
+
+    m.def("scan_images_and_labels", &scan_images_and_labels,
+          "A function that scans a directory for image files and determines their label status.");
 }

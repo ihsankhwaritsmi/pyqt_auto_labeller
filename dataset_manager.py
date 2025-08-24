@@ -101,23 +101,18 @@ class DatasetManager(QObject):
         self.current_filter = "All" # Reset filter on new dataset load
         self.main_window.filter_combobox.setCurrentText("All") # Reset combobox
 
-        supported_extensions = QImageReader.supportedImageFormats()
-        supported_extensions = [ext.data().decode('ascii') for ext in supported_extensions]
+        supported_extensions_bytes = QImageReader.supportedImageFormats()
+        supported_extensions = [ext.data().decode('ascii') for ext in supported_extensions_bytes]
 
-        for filename in os.listdir(self.dataset_folder):
-            file_path = os.path.join(self.dataset_folder, filename)
-            if os.path.isfile(file_path):
-                file_ext = os.path.splitext(filename)[1].lower().lstrip('.')
-                if file_ext in supported_extensions:
-                    self.image_files.append(file_path)
-                    self.image_visibility[file_path] = True # Initially all are visible
-                    self.image_bounding_boxes[file_path] = []
+        # Use the C++ function to scan images and their label status
+        image_infos = bbox_utils.scan_images_and_labels(self.dataset_folder, supported_extensions)
 
-                    label_filename = os.path.splitext(os.path.basename(file_path))[0] + ".txt"
-                    label_filepath = os.path.join(self.dataset_folder, label_filename)
-                    is_labelled = os.path.exists(label_filepath) and os.path.getsize(label_filepath) > 0
-                    self.image_labelled_status[file_path] = is_labelled # Store labelled status
-        
+        for info in image_infos:
+            self.image_files.append(info.path)
+            self.image_visibility[info.path] = True # Initially all are visible
+            self.image_bounding_boxes[info.path] = []
+            self.image_labelled_status[info.path] = info.is_labelled # Store labelled status from C++
+
         # After populating image_files and their statuses, apply the initial filter
         self.apply_filter(0) # Apply "All" filter initially (index 0)
 
