@@ -145,9 +145,15 @@ class UIManager:
         self.main_window.import_yolo_model_button.clicked.connect(self.main_window.dataset_manager.import_yolo_model)
         right_layout.addWidget(self.main_window.import_yolo_model_button)
 
-        self.main_window.auto_label_button = QPushButton("Auto Label")
+        self.main_window.auto_label_button = QPushButton("Auto Label Current Image")
         self.main_window.auto_label_button.clicked.connect(self.main_window.dataset_manager.auto_label_image)
+        self.main_window.auto_label_button.setEnabled(False) # Initially disabled
         right_layout.addWidget(self.main_window.auto_label_button)
+
+        self.main_window.auto_label_all_button = QPushButton("Auto Label All Unlabelled")
+        self.main_window.auto_label_all_button.clicked.connect(self.main_window.dataset_manager.auto_label_all_unlabelled_images)
+        self.main_window.auto_label_all_button.setEnabled(False) # Initially disabled
+        right_layout.addWidget(self.main_window.auto_label_all_button)
 
         right_layout.addStretch(1) # This pushes the following widgets to the bottom
 

@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         # Pass the labels map to the canvas widget when labels are loaded or changed
         self.dataset_manager.labels_updated.connect(self.ui_manager.main_window.canvas_label.set_labels_map)
         self.dataset_manager.current_image_has_bounding_boxes.connect(self._update_toggle_visibility_button_state)
+        self.dataset_manager.yolo_model_loaded_signal.connect(self._update_auto_label_button_state) # Connect new signal
 
     def apply_theme(self):
         self.ui_manager.apply_theme()
@@ -115,6 +116,11 @@ class MainWindow(QMainWindow):
             # If no bounding boxes, ensure they are visible (or reset state)
             self.ui_manager.main_window.canvas_label.set_bounding_box_visibility(True)
 
+    def _update_auto_label_button_state(self, is_model_loaded: bool):
+        self.ui_manager.main_window.auto_label_button.setEnabled(is_model_loaded)
+        # Also disable the "Auto Label All" button if it exists
+        if hasattr(self.ui_manager.main_window, 'auto_label_all_button'):
+            self.ui_manager.main_window.auto_label_all_button.setEnabled(is_model_loaded)
 
     def _previous_image(self):
         current_row = self.ui_manager.main_window.left_panel_list.currentRow()

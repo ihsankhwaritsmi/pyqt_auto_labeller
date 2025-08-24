@@ -12,6 +12,7 @@ import bbox_utils # Import the C++ module
 class DatasetManager(QObject):
     labels_updated = pyqtSignal(list) # New signal to emit when labels are updated
     current_image_has_bounding_boxes = pyqtSignal(bool) # Signal to indicate if current image has bounding boxes
+    yolo_model_loaded_signal = pyqtSignal(bool) # New signal to indicate if a YOLO model is loaded
     
     def __init__(self, main_window):
         super().__init__() # Call the parent class's __init__ method
@@ -66,6 +67,74 @@ class DatasetManager(QObject):
         except Exception as e:
             self.main_window.statusBar.showMessage(f"Error during auto-labeling: {e}")
 
+    def auto_label_all_unlabelled_images(self):
+        if not hasattr(self, 'yolo_model_path') or not self.yolo_model_path:
+            self.main_window.statusBar.showMessage("Please import a YOLO model first to auto-label all images.")
+            return
+
+        if not self.dataset_folder:
+            self.main_window.statusBar.showMessage("No dataset loaded.")
+            return
+
+        unlabelled_images = [
+            path for path in self.image_files
+            if not self.image_labelled_status.get(path, False)
+        ]
+
+        if not unlabelled_images:
+            self.main_window.statusBar.showMessage("No unlabelled images found to auto-label.")
+            return
+
+        self.main_window.show_loading_cursor()
+        self.main_window.statusBar.showMessage(f"Starting auto-labeling for {len(unlabelled_images)} unlabelled images...")
+        
+        try:
+            if self.yolo_model is None:
+                self.yolo_model = YOLO(self.yolo_model_path)
+
+            for i, image_path in enumerate(unlabelled_images):
+                self.main_window.statusBar.showMessage(f"Auto-labeling image {i+1}/{len(unlabelled_images)}: {os.path.basename(image_path)}")
+                QApplication.processEvents() # Allow UI to update
+
+                try:
+                    results = self.yolo_model(image_path)
+                    
+                    raw_boxes_data = []
+                    for result in results:
+                        for box in result.boxes:
+                            x1, y1, x2, y2 = box.xyxy[0]
+                            conf = box.conf[0]
+                            class_id = int(box.cls[0])
+                            raw_boxes_data.append([float(x1), float(y1), float(x2), float(y2), float(conf), float(class_id)])
+                    
+                    processed_pixel_boxes = bbox_utils.process_yolo_results(raw_boxes_data, 0.5)
+                    
+                    new_boxes_qrectf = []
+                    for p_box in processed_pixel_boxes:
+                        new_boxes_qrectf.append((p_box.class_id, QRectF(p_box.x, p_box.y, p_box.width, p_box.height)))
+
+                    # Add new boxes to the image's bounding box list
+                    self.image_bounding_boxes[image_path].extend(new_boxes_qrectf)
+                    
+                    # Save labels for this image
+                    self.save_labels_for_path(image_path)
+                    self._update_image_list_item_labelled_status(image_path, True) # Mark as labelled
+
+                except Exception as e:
+                    self.main_window.statusBar.showMessage(f"Error auto-labeling {os.path.basename(image_path)}: {e}")
+                    QApplication.processEvents()
+
+            self.main_window.statusBar.showMessage("Auto-labeling all unlabelled images complete.")
+            # After all images are processed, re-apply filter to refresh the list
+            filter_index = self.main_window.filter_combobox.findText(self.current_filter)
+            if filter_index != -1:
+                self.apply_filter(filter_index)
+
+        except Exception as e:
+            self.main_window.statusBar.showMessage(f"Error during batch auto-labeling: {e}")
+        finally:
+            self.main_window.hide_loading_cursor()
+
     def set_unsaved_changes(self):
         self.has_unsaved_changes = True
         self.main_window.statusBar.showMessage("Unsaved changes detected.")
@@ -99,6 +168,9 @@ class DatasetManager(QObject):
         self.has_unsaved_changes = False # Reset on new dataset load
         self.current_filter = "All" # Reset filter on new dataset load
         self.main_window.filter_combobox.setCurrentText("All") # Reset combobox
+        self.yolo_model_path = None # Clear YOLO model path on new dataset load
+        self.yolo_model = None # Clear loaded YOLO model
+        self.yolo_model_loaded_signal.emit(False) # Emit signal that model is not loaded
 
         supported_extensions_bytes = QImageReader.supportedImageFormats()
         supported_extensions = [ext.data().decode('ascii') for ext in supported_extensions_bytes]
@@ -201,10 +273,14 @@ class DatasetManager(QObject):
         if model_path:
             self.yolo_model_path = model_path
             self.main_window.statusBar.showMessage(f"YOLO model loaded: {os.path.basename(model_path)}")
+            self.yolo_model_loaded_signal.emit(True) # Emit signal that model is loaded
             # Optionally, load the model here or lazily when auto_label_image is called
             # For now, just store the path
         else:
+            self.yolo_model_path = None # Clear model path if selection is cancelled
+            self.yolo_model = None # Clear loaded model
             self.main_window.statusBar.showMessage("YOLO model selection cancelled.")
+            self.yolo_model_loaded_signal.emit(False) # Emit signal that model is not loaded
 
     def on_image_list_item_changed(self, current_item, previous_item):
         # Always update the bounding boxes from the canvas to the internal dictionary before any checks or saves
