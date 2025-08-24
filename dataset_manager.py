@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdi
 
 from widgets import ImageListItemWidget
 from canvas_widget import ZoomPanLabel
+import bbox_utils # Import the C++ module
 
 class DatasetManager(QObject):
     labels_updated = pyqtSignal(list) # New signal to emit when labels are updated
@@ -166,12 +167,18 @@ class DatasetManager(QObject):
                                 loaded_boxes = []
                                 break
 
-                            x = (center_x - width / 2) * original_width
-                            y = (center_y - height / 2) * original_height
-                            w = width * original_width
-                            h = height * original_height
+                            # Use C++ function for conversion
+                            normalized_box = bbox_utils.NormalizedBoundingBox()
+                            normalized_box.class_id = class_id
+                            normalized_box.center_x = center_x
+                            normalized_box.center_y = center_y
+                            normalized_box.width = width
+                            normalized_box.height = height
                             
-                            loaded_boxes.append((class_id, QRectF(x, y, w, h)))
+                            pixel_boxes = bbox_utils.convert_from_yolo_format([normalized_box], original_width, original_height)
+                            if pixel_boxes:
+                                p_box = pixel_boxes[0]
+                                loaded_boxes.append((p_box.class_id, QRectF(p_box.x, p_box.y, p_box.width, p_box.height)))
                 self.main_window.statusBar.showMessage(f"Labels loaded from {label_filename}. Found {len(loaded_boxes)} boxes.")
                 if loaded_boxes:
                     first_box = loaded_boxes[0][1]
@@ -311,15 +318,7 @@ class DatasetManager(QObject):
             self.main_window.statusBar.showMessage(f"Error saving labels to labels.json: {e}")
 
     def _generate_random_color(self):
-        # Generate a random color that is not too dark or too light
-        r = 0
-        g = 0
-        b = 0
-        while (r + g + b < 300) or (r + g + b > 600): # Ensure reasonable brightness
-            r = QColor.fromHsv(QApplication.instance().rng.randint(0, 359), 200, 200).red()
-            g = QColor.fromHsv(QApplication.instance().rng.randint(0, 359), 200, 200).green()
-            b = QColor.fromHsv(QApplication.instance().rng.randint(0, 359), 200, 200).blue()
-        return QColor(r, g, b).name() # Return hex string
+        return bbox_utils.generate_random_color()
 
     def _assign_colors_to_labels(self):
         self.label_colors = {}
@@ -423,16 +422,22 @@ class DatasetManager(QObject):
 
 
             with open(label_filepath, 'w') as f:
+                pixel_boxes_cpp = []
                 for class_id, rect in bounding_boxes:
                     if rect.width() <= 0 or rect.height() <= 0:
                         continue
+                    p_box = bbox_utils.PixelBoundingBox()
+                    p_box.class_id = class_id
+                    p_box.x = rect.x()
+                    p_box.y = rect.y()
+                    p_box.width = rect.width()
+                    p_box.height = rect.height()
+                    pixel_boxes_cpp.append(p_box)
 
-                    center_x = (rect.x() + rect.width() / 2) / original_width
-                    center_y = (rect.y() + rect.height() / 2) / original_height
-                    width = rect.width() / original_width
-                    height = rect.height() / original_height
-
-                    f.write(f"{class_id} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f}\n")
+                yolo_boxes = bbox_utils.convert_to_yolo_format(pixel_boxes_cpp, original_width, original_height)
+                
+                for y_box in yolo_boxes:
+                    f.write(f"{y_box.class_id} {y_box.center_x:.6f} {y_box.center_y:.6f} {y_box.width:.6f} {y_box.height:.6f}\n")
                 
             self.main_window.statusBar.showMessage(f"Labels saved to {label_filename}")
             self._update_image_list_item_labelled_status(image_path, True)

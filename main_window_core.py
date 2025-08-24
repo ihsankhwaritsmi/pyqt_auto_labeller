@@ -2,7 +2,6 @@ import os
 import sys
 from PyQt6.QtWidgets import QMainWindow, QInputDialog, QLineEdit, QApplication
 from PyQt6.QtCore import Qt
-import random # Import random for color generation
 
 # Import custom widget and styles
 from styles import DARK_THEME
@@ -18,7 +17,6 @@ class MainWindow(QMainWindow):
         self.dataset_manager = DatasetManager(self)
         self.ui_manager.setup_ui()
         self.apply_theme() # Call apply_theme here
-        self.rng = random.Random() # Initialize a random number generator for consistent colors
         self.connect_signals()
     def connect_signals(self):
         # Connect UI signals to DatasetManager methods
