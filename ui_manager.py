@@ -51,12 +51,18 @@ class UIManager:
         self.main_window.setCentralWidget(self.main_window.canvas_widget)
 
     def setup_left_panel(self):
-        self.main_window.left_panel = QDockWidget("Dataset Management")
+        self.main_window.left_panel = QDockWidget("") # Removed title
         self.main_window.left_panel.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         
         left_content_widget = QWidget()
         left_layout = QVBoxLayout(left_content_widget)
         
+        # Add a QLabel for the "Dataset Management" title at the top of the panel content
+        dataset_management_title = QLabel("Dataset Management")
+        dataset_management_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dataset_management_title.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        left_layout.addWidget(dataset_management_title)
+
         # Filter controls
         filter_layout = QHBoxLayout()
         filter_label = QLabel("Filter:")
@@ -104,14 +110,18 @@ class UIManager:
         self.main_window.left_panel.setFixedWidth(280) # Increased width
 
     def setup_right_panel(self):
-        self.main_window.right_panel = QDockWidget("Properties")
+        self.main_window.right_panel = QDockWidget() # Removed title
         self.main_window.right_panel.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         right_content = QWidget()
         right_layout = QVBoxLayout(right_content)
-        right_label = QLabel("Properties Panel Content")
-        right_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        right_layout.addWidget(right_label)
+        # Removed the QLabel for "Properties Panel Content" as it's no longer needed
         
+        # Add a QLabel for the "Tools" title at the top of the panel content
+        tools_title = QLabel("Tools")
+        tools_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tools_title.setStyleSheet("font-weight: bold; margin-top: 5px;") # Consistent styling with "Auto Labelling"
+        right_layout.addWidget(tools_title)
+
         self.main_window.annotate_button = QPushButton("Annotate Mode")
         self.main_window.select_button = QPushButton("Select Mode")
         self.main_window.save_labels_button = QPushButton("Save Labels")
@@ -139,6 +149,12 @@ class UIManager:
         auto_label_separator.setFrameShape(QFrame.Shape.HLine)
         auto_label_separator.setFrameShadow(QFrame.Shadow.Sunken)
         right_layout.addWidget(auto_label_separator)
+
+        # Auto Labelling Title
+        auto_label_title = QLabel("Auto Labelling")
+        auto_label_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        auto_label_title.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        right_layout.addWidget(auto_label_title)
 
         # YOLO Model and Auto Label buttons
         self.main_window.import_yolo_model_button = QPushButton("Import YOLO Model (.pt)")
