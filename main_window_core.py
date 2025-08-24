@@ -45,6 +45,12 @@ class MainWindow(QMainWindow):
     def apply_theme(self):
         self.ui_manager.apply_theme()
 
+    def show_loading_cursor(self):
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+    def hide_loading_cursor(self):
+        QApplication.restoreOverrideCursor()
+
     def _set_annotate_mode(self):
         self.ui_manager.main_window.canvas_label.set_mode("annotate")
         self.ui_manager.main_window.annotate_button.setChecked(True)

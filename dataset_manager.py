@@ -70,14 +70,13 @@ class DatasetManager(QObject):
         folder_path = QFileDialog.getExistingDirectory(self.main_window, "Select Dataset Folder")
         if folder_path:
             self.dataset_folder = folder_path
-            QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-            QApplication.processEvents() # Process events to ensure cursor changes immediately
-
-            self.populate_image_list()
-            self.load_labels_from_json()
-            self.main_window.statusBar.showMessage(f"Dataset loaded: {os.path.basename(folder_path)}")
-
-            QApplication.restoreOverrideCursor() # Restore cursor after all loading is done
+            self.main_window.show_loading_cursor()
+            try:
+                self.populate_image_list()
+                self.load_labels_from_json()
+                self.main_window.statusBar.showMessage(f"Dataset loaded: {os.path.basename(folder_path)}")
+            finally:
+                self.main_window.hide_loading_cursor()
         else:
             self.main_window.statusBar.showMessage("Dataset loading cancelled")
 
@@ -207,6 +206,11 @@ class DatasetManager(QObject):
         if self.current_image_path:
             self.image_bounding_boxes[self.current_image_path] = self.main_window.canvas_label.get_bounding_boxes()
 
+        # It's possible for list items to be deleted (e.g., by a filter change) while a modal dialog is open.
+        # We must check if the items are still valid before using them.
+        if previous_item and not previous_item.listWidget():
+            previous_item = None # It has been deleted.
+
         if self.has_unsaved_changes and self.current_image_path:
             reply = QMessageBox.warning(
                 self.main_window,
@@ -216,19 +220,28 @@ class DatasetManager(QObject):
             )
 
             if reply == QMessageBox.StandardButton.Save:
-                # Save labels for the previous image (the one with unsaved changes)
-                previous_image_widget = self.main_window.left_panel_list.itemWidget(previous_item)
-                if previous_image_widget and isinstance(previous_image_widget, ImageListItemWidget):
-                    self.save_labels_for_path(previous_image_widget.image_path)
-                else:
-                    self.main_window.statusBar.showMessage("Error: Could not determine path for previous image to save labels.")
+                # Save labels for the image that had unsaved changes.
+                self.save_labels_for_path(self.current_image_path)
+                # After saving, the list may have been rebuilt by a filter update.
+                # The original current_item is now invalid, so we must exit this
+                # handler. A new currentItemChanged signal will be emitted for the
+                # new selection in the list, which will be handled correctly.
+                return
             elif reply == QMessageBox.StandardButton.Discard:
                 self.has_unsaved_changes = False # Discard changes
             elif reply == QMessageBox.StandardButton.Cancel:
-                # Revert to previous item if user cancels
-                self.main_window.left_panel_list.setCurrentItem(previous_item)
+                # Revert to previous item if user cancels, but only if it's still valid.
+                # We also need to block signals to prevent an infinite loop.
+                if previous_item:
+                    self.main_window.left_panel_list.blockSignals(True)
+                    self.main_window.left_panel_list.setCurrentItem(previous_item)
+                    self.main_window.left_panel_list.blockSignals(False)
                 return
             # If discard, just proceed without saving
+
+        # After the dialog, the current_item might also be invalid.
+        if current_item and not current_item.listWidget():
+            current_item = None # It has been deleted.
 
         if current_item:
             widget = self.main_window.left_panel_list.itemWidget(current_item)
@@ -368,8 +381,7 @@ class DatasetManager(QObject):
             self.main_window.statusBar.showMessage("No dataset folder loaded.")
             return
 
-        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        QApplication.processEvents() # Ensure cursor changes immediately
+        self.main_window.show_loading_cursor()
         try:
             image_filename = os.path.basename(image_path)
             base_name, _ = os.path.splitext(image_filename)
@@ -430,7 +442,7 @@ class DatasetManager(QObject):
         except Exception as e:
             self.main_window.statusBar.showMessage(f"An unexpected error occurred: {e}")
         finally:
-            QApplication.restoreOverrideCursor()
+            self.main_window.hide_loading_cursor()
 
     def clear_labels(self):
         if self.current_image_path and self.current_image_path in self.image_bounding_boxes:
@@ -439,8 +451,7 @@ class DatasetManager(QObject):
             self.main_window.statusBar.showMessage("Bounding boxes cleared for current image.")
             self.current_image_has_bounding_boxes.emit(False) # No bounding boxes after clearing
             
-            QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-            QApplication.processEvents() # Ensure cursor changes immediately
+            self.main_window.show_loading_cursor()
             try:
                 # Also delete the corresponding label file
                 image_filename = os.path.basename(self.current_image_path)
@@ -460,7 +471,7 @@ class DatasetManager(QObject):
 
                 self._update_image_list_item_labelled_status(self.current_image_path, False)
             finally:
-                QApplication.restoreOverrideCursor()
+                self.main_window.hide_loading_cursor()
         else:
             self.main_window.statusBar.showMessage("No image selected or no bounding boxes to clear.")
 
