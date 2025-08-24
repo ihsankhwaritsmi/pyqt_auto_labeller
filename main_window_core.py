@@ -138,4 +138,5 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.dataset_manager.save_labels_to_json()
+        self.dataset_manager._save_image_statuses() # Save image statuses on close
         super().closeEvent(event)

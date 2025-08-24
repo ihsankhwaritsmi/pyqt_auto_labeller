@@ -20,7 +20,7 @@ class DatasetManager(QObject):
         self.dataset_folder = None
         self.image_files = []
         self.image_visibility = {} # {image_path: True/False (based on filter and manual toggle)}
-        self.image_labelled_status = {} # {image_path: True/False (based on label file existence)}
+        self.image_labelled_status = {} # {image_path: "unlabelled", "labelled", "auto-labelled"}
         self.image_bounding_boxes = {} # {image_path: [(class_id, QRectF), ...]}
         self.current_image_path = None
         self.labels = [] # [{'id': 0, 'name': 'label1', 'color': '#RRGGBB'}, ...]
@@ -29,6 +29,39 @@ class DatasetManager(QObject):
         self.has_unsaved_changes = False # New flag to track unsaved changes
         self.current_filter = "All" # Default filter
         self.yolo_model = None
+
+    def _get_image_status_filepath(self):
+        if self.dataset_folder:
+            return os.path.join(self.dataset_folder, "image_statuses.json")
+        return None
+
+    def _save_image_statuses(self):
+        filepath = self._get_image_status_filepath()
+        if filepath:
+            try:
+                # Convert image_labelled_status to a serializable format if necessary
+                # Currently, it's {image_path: "status_string"}, which is fine for JSON
+                with open(filepath, 'w') as f:
+                    json.dump(self.image_labelled_status, f, indent=4)
+                self.main_window.statusBar.showMessage("Image statuses saved.")
+            except IOError as e:
+                self.main_window.statusBar.showMessage(f"Error saving image statuses: {e}")
+
+    def _load_image_statuses(self):
+        filepath = self._get_image_status_filepath()
+        if filepath and os.path.exists(filepath):
+            try:
+                with open(filepath, 'r') as f:
+                    self.image_labelled_status = json.load(f)
+                self.main_window.statusBar.showMessage("Image statuses loaded.")
+            except json.JSONDecodeError as e:
+                self.main_window.statusBar.showMessage(f"Error decoding image_statuses.json: {e}")
+                self.image_labelled_status = {} # Reset if corrupted
+            except IOError as e:
+                self.main_window.statusBar.showMessage(f"Error reading image_statuses.json: {e}")
+                self.image_labelled_status = {} # Reset if error
+        else:
+            self.image_labelled_status = {} # Initialize empty if file doesn't exist
 
     def auto_label_image(self):
         if not self.current_image_path:
@@ -62,6 +95,7 @@ class DatasetManager(QObject):
 
             self.image_bounding_boxes[self.current_image_path].extend(new_boxes_qrectf)
             self.main_window.canvas_label.set_bounding_boxes(self.image_bounding_boxes[self.current_image_path])
+            self._update_image_list_item_labelled_status(self.current_image_path, "auto-labelled") # Mark as auto-labelled
             self.set_unsaved_changes()
             self.main_window.statusBar.showMessage(f"Auto-labeling complete. Found {len(new_boxes_qrectf)} new boxes.")
         except Exception as e:
@@ -78,7 +112,7 @@ class DatasetManager(QObject):
 
         unlabelled_images = [
             path for path in self.image_files
-            if not self.image_labelled_status.get(path, False)
+            if self.image_labelled_status.get(path, "unlabelled") == "unlabelled"
         ]
 
         if not unlabelled_images:
@@ -117,9 +151,8 @@ class DatasetManager(QObject):
                     self.image_bounding_boxes[image_path].extend(new_boxes_qrectf)
                     
                     # Save labels for this image
-                    self.save_labels_for_path(image_path)
-                    self._update_image_list_item_labelled_status(image_path, True) # Mark as labelled
-
+                    self.save_labels_for_path(image_path, status="auto-labelled")
+                    # The save_labels_for_path will now handle updating the status
                 except Exception as e:
                     self.main_window.statusBar.showMessage(f"Error auto-labeling {os.path.basename(image_path)}: {e}")
                     QApplication.processEvents()
@@ -178,11 +211,17 @@ class DatasetManager(QObject):
         # Use the C++ function to scan images and their label status
         image_infos = bbox_utils.scan_images_and_labels(self.dataset_folder, supported_extensions)
 
+        # Load previously saved statuses first
+        self._load_image_statuses()
+
         for info in image_infos:
             self.image_files.append(info.path)
             self.image_visibility[info.path] = True # Initially all are visible
             self.image_bounding_boxes[info.path] = []
-            self.image_labelled_status[info.path] = info.is_labelled # Store labelled status from C++
+            
+            # If status is not already loaded from file, initialize it
+            if info.path not in self.image_labelled_status:
+                self.image_labelled_status[info.path] = "labelled" if info.is_labelled else "unlabelled"
 
         # After populating image_files and their statuses, apply the initial filter
         self.apply_filter(0) # Apply "All" filter initially (index 0)
@@ -446,9 +485,9 @@ class DatasetManager(QObject):
         if not self.current_image_path:
             self.main_window.statusBar.showMessage("No image selected to save labels.")
             return
-        self.save_labels_for_path(self.current_image_path)
+        self.save_labels_for_path(self.current_image_path, status="labelled")
 
-    def save_labels_for_path(self, image_path: str):
+    def save_labels_for_path(self, image_path: str, status: str = "labelled"):
         """Saves labels for a specific image path."""
         if not self.dataset_folder:
             self.main_window.statusBar.showMessage("No dataset folder loaded.")
@@ -469,7 +508,7 @@ class DatasetManager(QObject):
                     try:
                         os.remove(label_filepath)
                         self.main_window.statusBar.showMessage(f"Removed empty label file: {label_filename}")
-                        self._update_image_list_item_labelled_status(image_path, False)
+                        self._update_image_list_item_labelled_status(image_path, "unlabelled")
                     except OSError as e:
                         self.main_window.statusBar.showMessage(f"Error removing file {label_filename}: {e}")
                 self.has_unsaved_changes = False # No boxes, so no unsaved changes
@@ -515,8 +554,9 @@ class DatasetManager(QObject):
                 f.write(yolo_string_content)
                 
             self.main_window.statusBar.showMessage(f"Labels saved to {label_filename}")
-            self._update_image_list_item_labelled_status(image_path, True)
+            self._update_image_list_item_labelled_status(image_path, status) # Use the passed status
             self.has_unsaved_changes = False # Labels are now saved
+            self._save_image_statuses() # Save statuses after updating
         except IOError as e:
             self.main_window.statusBar.showMessage(f"Error saving labels to {label_filename}: {e}")
         except Exception as e:
@@ -549,7 +589,7 @@ class DatasetManager(QObject):
                 else:
                     self.has_unsaved_changes = False # No label file existed, so no unsaved changes after clearing
 
-                self._update_image_list_item_labelled_status(self.current_image_path, False)
+                self._update_image_list_item_labelled_status(self.current_image_path, "unlabelled")
             finally:
                 self.main_window.hide_loading_cursor()
         else:
@@ -573,13 +613,14 @@ class DatasetManager(QObject):
             self.main_window.ui_manager.main_window.canvas_label.set_current_class_id(-1)
             self.main_window.statusBar.showMessage("No label selected.")
 
-    def _update_image_list_item_labelled_status(self, image_path: str, is_labelled: bool):
-        self.image_labelled_status[image_path] = is_labelled # Update internal status
+    def _update_image_list_item_labelled_status(self, image_path: str, status: str):
+        self.image_labelled_status[image_path] = status # Update internal status
+        self._save_image_statuses() # Save statuses immediately after update
         for i in range(self.main_window.left_panel_list.count()):
             item = self.main_window.left_panel_list.item(i)
             widget = self.main_window.left_panel_list.itemWidget(item)
             if isinstance(widget, ImageListItemWidget) and widget.image_path == image_path:
-                widget.set_labelled_status(is_labelled)
+                widget.set_labelled_status(status)
                 break
         
         # Re-apply the current filter to update the list display
@@ -602,12 +643,16 @@ class DatasetManager(QObject):
         filtered_image_paths = []
         for image_path in self.image_files:
             should_be_visible = False
+            current_status = self.image_labelled_status.get(image_path, "unlabelled")
+
             if filter_type == "All":
                 should_be_visible = True
             elif filter_type == "Labelled":
-                should_be_visible = self.image_labelled_status.get(image_path, False)
+                should_be_visible = current_status == "labelled"
             elif filter_type == "Unlabelled":
-                should_be_visible = not self.image_labelled_status.get(image_path, False)
+                should_be_visible = current_status == "unlabelled"
+            elif filter_type == "Auto-labelled":
+                should_be_visible = current_status == "auto-labelled"
             
             self.image_visibility[image_path] = should_be_visible
 
@@ -615,7 +660,7 @@ class DatasetManager(QObject):
                 filtered_image_paths.append(image_path)
                 list_item_widget = ImageListItemWidget(image_path)
                 list_item_widget.visibility_changed.connect(self.on_visibility_changed)
-                list_item_widget.set_labelled_status(self.image_labelled_status.get(image_path, False))
+                list_item_widget.set_labelled_status(current_status)
 
                 list_item = QListWidgetItem(self.main_window.left_panel_list)
                 list_item.setSizeHint(list_item_widget.sizeHint())

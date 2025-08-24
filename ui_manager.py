@@ -61,7 +61,7 @@ class UIManager:
         filter_layout = QHBoxLayout()
         filter_label = QLabel("Filter:")
         self.main_window.filter_combobox = QComboBox()
-        self.main_window.filter_combobox.addItems(["All", "Labelled", "Unlabelled"])
+        self.main_window.filter_combobox.addItems(["All", "Labelled", "Unlabelled", "Auto-labelled"])
         filter_layout.addWidget(filter_label)
         filter_layout.addWidget(self.main_window.filter_combobox)
         left_layout.addLayout(filter_layout)

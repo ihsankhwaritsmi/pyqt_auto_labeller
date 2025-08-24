@@ -40,18 +40,23 @@ class ImageListItemWidget(QWidget):
 
         # Labelled Status Label
         self.status_label = QLabel("") # Initialize empty
-        self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;") # Green color for "Labelled"
-        self.status_label.setFixedSize(60, 20) # Fixed size for consistency
+        self.status_label.setStyleSheet("font-weight: bold;") # Base style
+        self.status_label.setFixedSize(80, 20) # Increased size for consistency
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.layout.addWidget(self.status_label)
 
         self.setLayout(self.layout)
 
-    def set_labelled_status(self, is_labelled: bool):
-        if is_labelled:
+    def set_labelled_status(self, status: str):
+        if status == "labelled":
             self.status_label.setText("Labelled")
-        else:
-            self.status_label.setText("") # Clear text if not labelled
+            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;") # Green
+        elif status == "auto-labelled":
+            self.status_label.setText("Auto-Labelled")
+            self.status_label.setStyleSheet("color: #FFC107; font-weight: bold;") # Amber/Orange
+        else: # "unlabelled"
+            self.status_label.setText("") # Clear text if unlabelled
+            self.status_label.setStyleSheet("") # Reset style
 
     def load_thumbnail(self):
         pixmap = QPixmap(self.image_path)
