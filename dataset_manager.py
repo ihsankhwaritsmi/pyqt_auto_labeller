@@ -62,8 +62,7 @@ class DatasetManager(QObject):
             self.image_bounding_boxes[self.current_image_path].extend(new_boxes_qrectf)
             self.main_window.canvas_label.set_bounding_boxes(self.image_bounding_boxes[self.current_image_path])
             self.set_unsaved_changes()
-            self.main_window.statusBar.showMessage(f"Auto-labeling complete. Found {len(new_boxes)} new boxes.")
-
+            self.main_window.statusBar.showMessage(f"Auto-labeling complete. Found {len(new_boxes_qrectf)} new boxes.")
         except Exception as e:
             self.main_window.statusBar.showMessage(f"Error during auto-labeling: {e}")
 
