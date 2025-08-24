@@ -142,9 +142,11 @@ class UIManager:
 
         # YOLO Model and Auto Label buttons
         self.main_window.import_yolo_model_button = QPushButton("Import YOLO Model (.pt)")
+        self.main_window.import_yolo_model_button.clicked.connect(self.main_window.dataset_manager.import_yolo_model)
         right_layout.addWidget(self.main_window.import_yolo_model_button)
 
         self.main_window.auto_label_button = QPushButton("Auto Label")
+        self.main_window.auto_label_button.clicked.connect(self.main_window.dataset_manager.auto_label_image)
         right_layout.addWidget(self.main_window.auto_label_button)
 
         right_layout.addStretch(1) # This pushes the following widgets to the bottom

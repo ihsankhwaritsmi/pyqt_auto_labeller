@@ -1,5 +1,6 @@
 import os
 import json
+from ultralytics import YOLO
 from PyQt6.QtCore import Qt, QDir, QSize, pyqtSignal, QRectF, QObject
 from PyQt6.QtGui import QPixmap, QImageReader, QColor # Import QColor
 from PyQt6.QtWidgets import QFileDialog, QListWidgetItem, QInputDialog, QLineEdit, QApplication, QMessageBox
@@ -25,6 +26,41 @@ class DatasetManager(QObject):
         self.label_colors = {} # {label_id: QColor}
         self.has_unsaved_changes = False # New flag to track unsaved changes
         self.current_filter = "All" # Default filter
+        self.yolo_model = None
+
+    def auto_label_image(self):
+        if not self.current_image_path:
+            self.main_window.statusBar.showMessage("No image selected for auto-labeling.")
+            return
+
+        if not hasattr(self, 'yolo_model_path') or not self.yolo_model_path:
+            self.main_window.statusBar.showMessage("Please import a YOLO model first.")
+            return
+
+        try:
+            if self.yolo_model is None:
+                self.yolo_model = YOLO(self.yolo_model_path)
+            
+            results = self.yolo_model(self.current_image_path)
+            
+            new_boxes = []
+            for result in results:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = box.xyxy[0]
+                    conf = box.conf[0]
+                    class_id = int(box.cls[0])
+                    if conf > 0.5: # Confidence threshold
+                        w = x2 - x1
+                        h = y2 - y1
+                        new_boxes.append((class_id, QRectF(float(x1), float(y1), float(w), float(h))))
+            
+            self.image_bounding_boxes[self.current_image_path].extend(new_boxes)
+            self.main_window.canvas_label.set_bounding_boxes(self.image_bounding_boxes[self.current_image_path])
+            self.set_unsaved_changes()
+            self.main_window.statusBar.showMessage(f"Auto-labeling complete. Found {len(new_boxes)} new boxes.")
+
+        except Exception as e:
+            self.main_window.statusBar.showMessage(f"Error during auto-labeling: {e}")
 
     def set_unsaved_changes(self):
         self.has_unsaved_changes = True
@@ -149,6 +185,22 @@ class DatasetManager(QObject):
 
         self.main_window.statusBar.showMessage(f"Displaying: {os.path.basename(image_path)}")
         self.current_image_has_bounding_boxes.emit(bool(loaded_boxes)) # Emit signal based on loaded boxes
+
+    def import_yolo_model(self):
+        """Opens a file dialog to select a YOLO model file (.pt)."""
+        model_path, _ = QFileDialog.getOpenFileName(
+            self.main_window,
+            "Select YOLO Model",
+            "", # Start directory
+            "YOLO Models (*.pt)"
+        )
+        if model_path:
+            self.yolo_model_path = model_path
+            self.main_window.statusBar.showMessage(f"YOLO model loaded: {os.path.basename(model_path)}")
+            # Optionally, load the model here or lazily when auto_label_image is called
+            # For now, just store the path
+        else:
+            self.main_window.statusBar.showMessage("YOLO model selection cancelled.")
 
     def on_image_list_item_changed(self, current_item, previous_item):
         # Always update the bounding boxes from the canvas to the internal dictionary before any checks or saves
