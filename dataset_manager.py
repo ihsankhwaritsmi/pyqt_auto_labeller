@@ -44,18 +44,22 @@ class DatasetManager(QObject):
             
             results = self.yolo_model(self.current_image_path)
             
-            new_boxes = []
+            raw_boxes_data = []
             for result in results:
                 for box in result.boxes:
                     x1, y1, x2, y2 = box.xyxy[0]
                     conf = box.conf[0]
                     class_id = int(box.cls[0])
-                    if conf > 0.5: # Confidence threshold
-                        w = x2 - x1
-                        h = y2 - y1
-                        new_boxes.append((class_id, QRectF(float(x1), float(y1), float(w), float(h))))
+                    raw_boxes_data.append([float(x1), float(y1), float(x2), float(y2), float(conf), float(class_id)])
             
-            self.image_bounding_boxes[self.current_image_path].extend(new_boxes)
+            # Use C++ function to process YOLO results
+            processed_pixel_boxes = bbox_utils.process_yolo_results(raw_boxes_data, 0.5) # 0.5 is confidence threshold
+            
+            new_boxes_qrectf = []
+            for p_box in processed_pixel_boxes:
+                new_boxes_qrectf.append((p_box.class_id, QRectF(p_box.x, p_box.y, p_box.width, p_box.height)))
+
+            self.image_bounding_boxes[self.current_image_path].extend(new_boxes_qrectf)
             self.main_window.canvas_label.set_bounding_boxes(self.image_bounding_boxes[self.current_image_path])
             self.set_unsaved_changes()
             self.main_window.statusBar.showMessage(f"Auto-labeling complete. Found {len(new_boxes)} new boxes.")
@@ -436,8 +440,9 @@ class DatasetManager(QObject):
 
                 yolo_boxes = bbox_utils.convert_to_yolo_format(pixel_boxes_cpp, original_width, original_height)
                 
-                for y_box in yolo_boxes:
-                    f.write(f"{y_box.class_id} {y_box.center_x:.6f} {y_box.center_y:.6f} {y_box.width:.6f} {y_box.height:.6f}\n")
+                # Use C++ function to format the YOLO labels into a string
+                yolo_string_content = bbox_utils.format_yolo_labels_to_string(yolo_boxes)
+                f.write(yolo_string_content)
                 
             self.main_window.statusBar.showMessage(f"Labels saved to {label_filename}")
             self._update_image_list_item_labelled_status(image_path, True)

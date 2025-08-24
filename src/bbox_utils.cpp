@@ -98,6 +98,50 @@ std::string generate_random_color()
     return ss.str();
 }
 
+// Function to process raw YOLO results into a list of PixelBoundingBox
+std::vector<PixelBoundingBox> process_yolo_results(
+    const std::vector<std::vector<double>> &raw_boxes, // Each inner vector: [x1, y1, x2, y2, conf, class_id]
+    double confidence_threshold)
+{
+
+    std::vector<PixelBoundingBox> new_boxes;
+    for (const auto &box_data : raw_boxes)
+    {
+        if (box_data.size() >= 6)
+        {
+            double x1 = box_data[0];
+            double y1 = box_data[1];
+            double x2 = box_data[2];
+            double y2 = box_data[3];
+            double conf = box_data[4];
+            int class_id = static_cast<int>(box_data[5]);
+
+            if (conf > confidence_threshold)
+            {
+                double w = x2 - x1;
+                double h = y2 - y1;
+                new_boxes.push_back({class_id, x1, y1, w, h});
+            }
+        }
+    }
+    return new_boxes;
+}
+
+// Function to format a list of NormalizedBoundingBox objects into a single string
+std::string format_yolo_labels_to_string(const std::vector<NormalizedBoundingBox> &yolo_boxes)
+{
+    std::stringstream ss;
+    for (const auto &y_box : yolo_boxes)
+    {
+        ss << y_box.class_id << " "
+           << std::fixed << std::setprecision(6) << y_box.center_x << " "
+           << std::fixed << std::setprecision(6) << y_box.center_y << " "
+           << std::fixed << std::setprecision(6) << y_box.width << " "
+           << std::fixed << std::setprecision(6) << y_box.height << "\n";
+    }
+    return ss.str();
+}
+
 PYBIND11_MODULE(bbox_utils, m)
 {
     m.doc() = "pybind11 plugin for bounding box utilities"; // optional module docstring
@@ -126,4 +170,10 @@ PYBIND11_MODULE(bbox_utils, m)
 
     m.def("generate_random_color", &generate_random_color,
           "A function that generates a random color in hex string format.");
+
+    m.def("process_yolo_results", &process_yolo_results,
+          "A function that processes raw YOLO detection results, filters by confidence, and converts to pixel bounding boxes.");
+
+    m.def("format_yolo_labels_to_string", &format_yolo_labels_to_string,
+          "A function that formats a list of normalized bounding boxes into a YOLO .txt file string.");
 }
